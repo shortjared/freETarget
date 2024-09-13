@@ -10,12 +10,14 @@ ColumnLimit: 140
 
 # Alignment
 AlignAfterOpenBracket: Align
-AlignConsecutiveMacros: true
-AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: AcrossEmptyLines
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
 AlignEscapedNewlines: Right
 AlignOperands: true
-AlignTrailingComments: true
+AlignTrailingComments: 
+  Kind: Always
+  OverEmptyLines: 2
 
 # Breaks
 AllowAllParametersOfDeclarationOnNextLine: true

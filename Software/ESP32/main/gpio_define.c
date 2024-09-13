@@ -15,37 +15,36 @@
  *
  ***************************************************************************/
 
-#include "stdbool.h"
-#include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "driver/pulse_cnt.h"
-#include "driver/gpio.h"
-#include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_continuous.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_log.h"
+#include "i2c.h"
 #include "led_strip.h"
 #include "led_strip_types.h"
-#include "i2c.h"
-#include "pwm.h"
 #include "pcnt.h"
+#include "pwm.h"
+#include "stdbool.h"
 
-#include "diag_tools.h"
 #include "analog_io.h"
+#include "diag_tools.h"
 #include "gpio_define.h"
 
 /*
  *  Digital IO definitions
  */
-DIO_struct_t dio00 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio01 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio02 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio03 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio04 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio05 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio06 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio07 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio08 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
-DIO_struct_t dio09 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0}; // Mode and Initial Value
+DIO_struct_t dio00 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio01 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio02 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio03 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio04 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio05 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio06 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio07 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio08 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
+DIO_struct_t dio09 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
 
 DIO_struct_t dio10 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
 DIO_struct_t dio11 = {.type = DIGITAL_IO, .mode = GPIO_MODE_INPUT, .initial_value = 0};  // Mode and Initial Value
@@ -156,34 +155,34 @@ LED_strip_struct_t led_strip_config = {.type = LED_STRIP}; // 3 LEDs on the boar
 
 gpio_struct_t gpio_table[] = {
     //   Name      Number       Assigned
-    {"EN", GPIO_NUM_0, NULL},                      // RTC_GPIO0, GPIO0                       (Strapping EN)
-    {"BD_REV", GPIO_NUM_4, (void *)&adc1_ch3},     // BD_REV
-    {"RUN_NORTH_LO", GPIO_NUM_5, (void *)&pcnt0},  // RUN_NORTH_LO
-    {"RUN_EAST_LO", GPIO_NUM_6, (void *)&pcnt1},   // RUN_EAST_LO
-    {"RUN_SOUTH_LO", GPIO_NUM_7, (void *)&pcnt2},  // RUN_SOUTH_LO
-    {"RUN_WEST_LO", GPIO_NUM_15, (void *)&pcnt3},  // RUN_WEST_LO
-    {"RUN_NORTH_HI", GPIO_NUM_16, (void *)&dio16}, // RUN_NORTH_HI Not used on ESP32-S3
+    {"EN", GPIO_NUM_0, NULL},                           // RTC_GPIO0, GPIO0                       (Strapping EN)
+    {"BD_REV", GPIO_NUM_4, (void *)&adc1_ch3},          // BD_REV
+    {"RUN_NORTH_LO", GPIO_NUM_5, (void *)&pcnt0},       // RUN_NORTH_LO
+    {"RUN_EAST_LO", GPIO_NUM_6, (void *)&pcnt1},        // RUN_EAST_LO
+    {"RUN_SOUTH_LO", GPIO_NUM_7, (void *)&pcnt2},       // RUN_SOUTH_LO
+    {"RUN_WEST_LO", GPIO_NUM_15, (void *)&pcnt3},       // RUN_WEST_LO
+    {"RUN_NORTH_HI", GPIO_NUM_16, (void *)&dio16},      // RUN_NORTH_HI Not used on ESP32-S3
 
-    {"ATX", GPIO_NUM_17, NULL},                    // ATX
-    {"ARX", GPIO_NUM_18, NULL},                    // ARX
-    {"REF_CLK", GPIO_NUM_8, NULL},                 // Re rence CLock Used by pcnt
-    {"USB_D-", GPIO_NUM_19, NULL},                 // JTAG USB D-
-    {"USB_D+", GPIO_NUM_20, NULL},                 // JTAG USB D+
-    {"USB_JTAG", GPIO_NUM_3, NULL},                // JTAG Strap to 3V3
-    {"ROM_MSG", GPIO_NUM_46, NULL},                // Enable ROM messages
-    {"RUN_EAST_HI", GPIO_NUM_9, (void *)&dio09},   // RUN_EAST_HI Direct to GPIO
-    {"RUN_SOUTH_HI", GPIO_NUM_10, (void *)&dio10}, // RUN_SOUTH_HI
-    {"RUN_WEST_HI", GPIO_NUM_11, (void *)&dio11},  // RUN_WEST_HI
-    {"PAPER", GPIO_NUM_12, (void *)&dio12},        // PAPER  Drive
-    {"V12_REF", GPIO_NUM_1, (void *)&adc1_ch0},    // LED Feedback (Measure 12VDC)
-    {"LED_PWM", GPIO_NUM_2, (void *)&pwm0},        // LED_PWM
-    {"TXD", 43, NULL},                             // UART Transmit   Initialized in serial_io_init
-    {"RXD", 44, NULL},                             // UART Receive
-    {"LDAC*", GPIO_NUM_42, (void *)&dio42},        // Load DAC*
-    {"SPARE0", GPIO_NUM_41, NULL},                 //
-    {"FACE_HALF", GPIO_NUM_40, (void *)&dio40},    // FACE Interrupt
-    {"SPARE1", GPIO_NUM_39, NULL},                 // STOP Clock
-    {"A", GPIO_NUM_38, (void *)&dio38},            // Auxilary Input A
+    {"ATX", GPIO_NUM_17, NULL},                         // ATX
+    {"ARX", GPIO_NUM_18, NULL},                         // ARX
+    {"REF_CLK", GPIO_NUM_8, NULL},                      // Re rence CLock Used by pcnt
+    {"USB_D-", GPIO_NUM_19, NULL},                      // JTAG USB D-
+    {"USB_D+", GPIO_NUM_20, NULL},                      // JTAG USB D+
+    {"USB_JTAG", GPIO_NUM_3, NULL},                     // JTAG Strap to 3V3
+    {"ROM_MSG", GPIO_NUM_46, NULL},                     // Enable ROM messages
+    {"RUN_EAST_HI", GPIO_NUM_9, (void *)&dio09},        // RUN_EAST_HI Direct to GPIO
+    {"RUN_SOUTH_HI", GPIO_NUM_10, (void *)&dio10},      // RUN_SOUTH_HI
+    {"RUN_WEST_HI", GPIO_NUM_11, (void *)&dio11},       // RUN_WEST_HI
+    {"PAPER", GPIO_NUM_12, (void *)&dio12},             // PAPER  Drive
+    {"V12_REF", GPIO_NUM_1, (void *)&adc1_ch0},         // LED Feedback (Measure 12VDC)
+    {"LED_PWM", GPIO_NUM_2, (void *)&pwm0},             // LED_PWM
+    {"TXD", 43, NULL},                                  // UART Transmit   Initialized in serial_io_init
+    {"RXD", 44, NULL},                                  // UART Receive
+    {"LDAC*", GPIO_NUM_42, (void *)&dio42},             // Load DAC*
+    {"SPARE0", GPIO_NUM_41, NULL},                      //
+    {"FACE_HALF", GPIO_NUM_40, (void *)&dio40},         // FACE Interrupt
+    {"SPARE1", GPIO_NUM_39, NULL},                      // STOP Clock
+    {"A", GPIO_NUM_38, (void *)&dio38},                 // Auxilary Input A
 
     {"B", GPIO_NUM_37, (void *)&dio37},                 // Auxilary Input B
     {"C", GPIO_NUM_36, (void *)&dio36},                 // Auxilary Input C
@@ -200,8 +199,7 @@ gpio_struct_t gpio_table[] = {
 /*
  *  Variables
  */
-static char *gpio_use[] = {
-    "DIGITAL_IO", "ANALOG_IO", "SERIAL_AUX", "PWM_OUT", "I2C_PORT", "PCNT", "LED_STRIP"};
+static char *gpio_use[] = {"DIGITAL_IO", "ANALOG_IO", "SERIAL_AUX", "PWM_OUT", "I2C_PORT", "PCNT", "LED_STRIP"};
 
 /*************************************************************************
  *
@@ -217,80 +215,72 @@ static char *gpio_use[] = {
  *
  ***************************************************************************/
 
-void gpio_init(void)
-{
-    int i;
+void gpio_init(void) {
+  int i;
 
-    DLT(DLT_CRITICAL, printf("gpio_init()\r\n");)
-    /*
-     *  Loop and setup the GPIO
-     */
-    i = 0;
-    while (gpio_table[i].gpio_name != 0)
-    {
-        if (gpio_table[i].gpio_uses != NULL)
-        {
-            DLT(DLT_CRITICAL,
-                printf("%s: %d  %s", gpio_table[i].gpio_name, gpio_table[i].gpio_number, gpio_use[((DIO_struct_t *)(gpio_table[i].gpio_uses))->type]);)
+  DLT(DLT_CRITICAL, printf("gpio_init()\r\n");)
+  /*
+   *  Loop and setup the GPIO
+   */
+  i = 0;
+  while (gpio_table[i].gpio_name != 0) {
+    if (gpio_table[i].gpio_uses != NULL) {
+      DLT(DLT_CRITICAL, printf("%s: %d  %s", gpio_table[i].gpio_name, gpio_table[i].gpio_number,
+                               gpio_use[((DIO_struct_t *)(gpio_table[i].gpio_uses))->type]);)
 
-            switch (((DIO_struct_t *)(gpio_table[i].gpio_uses))->type)
-            {
-            default:
-                break;
+      switch (((DIO_struct_t *)(gpio_table[i].gpio_uses))->type) {
+      default:
+        break;
 
-            case DIGITAL_IO:
-                switch (((DIO_struct_t *)(gpio_table[i].gpio_uses))->mode)
-                {
-                case GPIO_MODE_INPUT:
-                    gpio_set_direction(gpio_table[i].gpio_number, GPIO_MODE_INPUT);
-                    gpio_set_pull_mode(gpio_table[i].gpio_number, GPIO_PULLUP_ONLY);
-                    break;
+      case DIGITAL_IO:
+        switch (((DIO_struct_t *)(gpio_table[i].gpio_uses))->mode) {
+        case GPIO_MODE_INPUT:
+          gpio_set_direction(gpio_table[i].gpio_number, GPIO_MODE_INPUT);
+          gpio_set_pull_mode(gpio_table[i].gpio_number, GPIO_PULLUP_ONLY);
+          break;
 
-                case GPIO_MODE_OUTPUT:
-                case GPIO_MODE_OUTPUT_OD:
-                case GPIO_MODE_INPUT_OUTPUT_OD:
-                case GPIO_MODE_INPUT_OUTPUT:
-                    gpio_set_direction(gpio_table[i].gpio_number, GPIO_MODE_OUTPUT);
-                    gpio_set_pull_mode(gpio_table[i].gpio_number, GPIO_PULLUP_PULLDOWN);
-                    gpio_set_level(gpio_table[i].gpio_number, ((DIO_struct_t *)(gpio_table[i].gpio_uses))->initial_value);
-                    break;
+        case GPIO_MODE_OUTPUT:
+        case GPIO_MODE_OUTPUT_OD:
+        case GPIO_MODE_INPUT_OUTPUT_OD:
+        case GPIO_MODE_INPUT_OUTPUT:
+          gpio_set_direction(gpio_table[i].gpio_number, GPIO_MODE_OUTPUT);
+          gpio_set_pull_mode(gpio_table[i].gpio_number, GPIO_PULLUP_PULLDOWN);
+          gpio_set_level(gpio_table[i].gpio_number, ((DIO_struct_t *)(gpio_table[i].gpio_uses))->initial_value);
+          break;
 
-                default:
-                    break;
-                }
-                break;
-
-            case ANALOG_IO:
-                adc_init(((ADC_struct_t *)(gpio_table[i].gpio_uses))->adc_channel,
-                         ((ADC_struct_t *)(gpio_table[i].gpio_uses))->adc_attenuation);
-                break;
-
-            case PWM_OUT:
-                pwm_init(((PWM_struct_t *)(gpio_table[i].gpio_uses))->pwm_channel,
-                         gpio_table[i].gpio_number);
-                break;
-
-            case I2C_PORT:
-                i2c_init(((I2C_struct_t *)(gpio_table[i].gpio_uses))->gpio_number_SDA,
-                         ((I2C_struct_t *)(gpio_table[i].gpio_uses))->gpio_number_SCL);
-                break;
-
-            case PCNT:
-                pcnt_init(((PCNT_struct_t *)(gpio_table[i].gpio_uses))->pcnt_unit,
-                          ((PCNT_struct_t *)(gpio_table[i].gpio_uses))->pcnt_control,
-                          ((PCNT_struct_t *)(gpio_table[i].gpio_uses))->pcnt_signal);
-                break;
-
-            case LED_STRIP:
-                status_LED_init(gpio_table[i].gpio_number);
-                break;
-            }
+        default:
+          break;
         }
-        i++;
-    }
+        break;
 
-    /*
-     *  all done, return
-     */
-    return;
+      case ANALOG_IO:
+        adc_init(((ADC_struct_t *)(gpio_table[i].gpio_uses))->adc_channel, ((ADC_struct_t *)(gpio_table[i].gpio_uses))->adc_attenuation);
+        break;
+
+      case PWM_OUT:
+        pwm_init(((PWM_struct_t *)(gpio_table[i].gpio_uses))->pwm_channel, gpio_table[i].gpio_number);
+        break;
+
+      case I2C_PORT:
+        i2c_init(((I2C_struct_t *)(gpio_table[i].gpio_uses))->gpio_number_SDA,
+                 ((I2C_struct_t *)(gpio_table[i].gpio_uses))->gpio_number_SCL);
+        break;
+
+      case PCNT:
+        pcnt_init(((PCNT_struct_t *)(gpio_table[i].gpio_uses))->pcnt_unit, ((PCNT_struct_t *)(gpio_table[i].gpio_uses))->pcnt_control,
+                  ((PCNT_struct_t *)(gpio_table[i].gpio_uses))->pcnt_signal);
+        break;
+
+      case LED_STRIP:
+        status_LED_init(gpio_table[i].gpio_number);
+        break;
+      }
+    }
+    i++;
+  }
+
+  /*
+   *  all done, return
+   */
+  return;
 }

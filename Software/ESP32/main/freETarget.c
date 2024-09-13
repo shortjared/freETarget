@@ -30,39 +30,39 @@
 /*
  *  Function Prototypes
  */
-static unsigned int set_mode(void); // Set the target running mode
-static unsigned int arm(void);      // Arm the circuit for a shot
-static unsigned int wait(void);     // Wait for the shot to arrive
-static unsigned int reduce(void);   // Reduce the shot data
-static bool discard_shot(void);     // In TabataThrow away the shot
-extern void gpio_init(void);
+static unsigned int set_mode(void);     // Set the target running mode
+static unsigned int arm(void);          // Arm the circuit for a shot
+static unsigned int wait(void);         // Wait for the shot to arrive
+static unsigned int reduce(void);       // Reduce the shot data
+static bool         discard_shot(void); // In TabataThrow away the shot
+extern void         gpio_init(void);
 
 /*
  *  Variables
  */
-shot_record_t record[SHOT_SPACE]; // Array of shot records
-unsigned int shot_in;             // Index to the shot just received
-unsigned int shot_out;            // Index to the shot just sent to the PC (shot_out <= shot_in)
+shot_record_t record[SHOT_SPACE];           // Array of shot records
+unsigned int  shot_in;                      // Index to the shot just received
+unsigned int  shot_out;                     // Index to the shot just sent to the PC (shot_out <= shot_in)
 
-double s_of_sound;            // Speed of sound
-unsigned int shot = 0;        // Shot counter
-unsigned int face_strike = 0; // Miss Face Strike interrupt count
-unsigned int is_trace = 0;    // Turn off tracing
-unsigned long rapid_on = 0;   // Duration of rapid fire event
+double        s_of_sound;                   // Speed of sound
+unsigned int  shot        = 0;              // Shot counter
+unsigned int  face_strike = 0;              // Miss Face Strike interrupt count
+unsigned int  is_trace    = 0;              // Turn off tracing
+unsigned long rapid_on    = 0;              // Duration of rapid fire event
 
-unsigned int rapid_count = 0;         // Number of shots to be expected in Rapid Fire
-unsigned int shot_number;             // Shot Identifier (1-100)
-volatile unsigned long in_shot_timer; // Time inside of the shot window
+unsigned int           rapid_count = 0;     // Number of shots to be expected in Rapid Fire
+unsigned int           shot_number;         // Shot Identifier (1-100)
+volatile unsigned long in_shot_timer;       // Time inside of the shot window
 
 static volatile unsigned long keep_alive;   // Keep alive timer
 static volatile unsigned long tabata_timer; // Free running state timer
-volatile unsigned long power_save;          // Power save timer
+volatile unsigned long        power_save;   // Power save timer
 static volatile unsigned long rapid_timer;  // Timer used for rapid fire ecents
-volatile unsigned long LED_timer;           // Timer to reset LED status
+volatile unsigned long        LED_timer;    // Timer to reset LED status
 
-volatile unsigned int run_state = 0; // Current operating state
+volatile unsigned int run_state = 0;        // Current operating state
 
-const char *names[] = {"TARGET",                                                                                         //  0
+const char *names[] = {"TARGET",            //  0
                        "1",      "2",      "3",       "4",      "5",       "6",       "7",      "8",     "9",      "10", //  1
                        "DOC",    "DOPEY",  "HAPPY",   "GRUMPY", "BASHFUL", "SNEEZEY", "SLEEPY",                          // 11
                        "RUDOLF", "DONNER", "BLITZEN", "DASHER", "PRANCER", "VIXEN",   "COMET",  "CUPID", "DUNDER",       // 18
@@ -71,7 +71,7 @@ const char *names[] = {"TARGET",                                                
 
 const char to_hex[] = "0123456789ABCDEF"; // Quick Hex to ASCII
 
-char _xs[512]; // Holding buffer for sprintf
+char _xs[512];                            // Holding buffer for sprintf
 
 /*----------------------------------------------------------------
  *
@@ -91,7 +91,7 @@ void freeETarget_init(void) {
    *  Setup the hardware
    */
   serial_io_init();
-  POST_version(); // Show the version string on all ports
+  POST_version();                  // Show the version string on all ports
   gpio_init();
   read_nonvol();
   set_status_LED(LED_HELLO_WORLD); // Hello World
@@ -120,7 +120,7 @@ void freeETarget_init(void) {
   show_echo();
   set_LED_PWM(json_LED_PWM);
   serial_flush(ALL); // Get rid of everything
-  shot_in = 0;       // Clear out any junk
+  shot_in  = 0;      // Clear out any junk
   shot_out = 0;
   DLT(DLT_CRITICAL, printf("Initialization complete");)
 
@@ -142,9 +142,9 @@ void freeETarget_init(void) {
  *----------------------------------------------------------------
  */
 enum {
-  START = 0, // Set the operating mode
-  WAIT,      // ARM the circuit and wait for a shot
-  REDUCE     // Reduce the data and send the score
+  START = 0,                // Set the operating mode
+  WAIT,                     // ARM the circuit and wait for a shot
+  REDUCE                    // Reduce the data and send the score
 } state;
 
 unsigned int sensor_status; // Record which sensors contain valid data
@@ -155,10 +155,10 @@ void freeETarget_target_loop(void *arg) {
   DLT(DLT_CRITICAL, printf("freeETarget_target_loop()");)
   set_status_LED(LED_READY);
 
-  shot_number = 1; // Start counting shots at 1
+  shot_number = 1;                // Start counting shots at 1
 
   while (1) {
-    IF_IN(IN_SLEEP | IN_TEST) // If Not in operation,
+    IF_IN(IN_SLEEP | IN_TEST)     // If Not in operation,
     {
       run_state &= ~IN_OPERATION; // Exit operation
       vTaskDelay(ONE_SECOND);
@@ -214,16 +214,16 @@ void freeETarget_target_loop(void *arg) {
 unsigned int set_mode(void) {
   unsigned int i;
 
-  rapid_on = 0; // Turn off the timer
+  rapid_on = 0;                                // Turn off the timer
 
   for (i = 0; i != SHOT_SPACE; i++) {
-    record[i].face_strike = 100; // Disable the shot record
+    record[i].face_strike = 100;               // Disable the shot record
   }
 
   if (json_tabata_enable || json_rapid_enable) // If the Tabata or rapid fire is enabled,
   {
-    set_LED_PWM_now(0);    // Turn off the LEDs
-    json_rapid_enable = 0; // Disable the rapid fire
+    set_LED_PWM_now(0);                        // Turn off the LEDs
+    json_rapid_enable = 0;                     // Disable the rapid fire
   } // Until the session starts
   else {
     set_LED_PWM(json_LED_PWM); // Keep the LEDs ON
@@ -253,15 +253,15 @@ unsigned int set_mode(void) {
  *
  *--------------------------------------------------------------*/
 unsigned int arm(void) {
-  face_strike = 0; // Reset the face strike count
+  face_strike = 0;              // Reset the face strike count
 
   stop_timers();
-  arm_timers(); // Arm the counters
+  arm_timers();                 // Arm the counters
 
   sensor_status = is_running(); // and immediatly read the status
   if (sensor_status == 0)       // After arming, the sensor status should be zero
   {
-    return WAIT; // Fall through to WAIT
+    return WAIT;                // Fall through to WAIT
   }
 
   /*
@@ -300,12 +300,12 @@ unsigned int wait(void) {
   if ((json_rapid_enable == 1) // The rapid fire timer has been turned on
       && (rapid_on != 0))      // And there is a defined interval
   {
-    if (rapid_on) // Do this until the timer expires
+    if (rapid_on)              // Do this until the timer expires
     {
       set_LED_PWM_now(0);
 
       DLT(DLT_APPLICATION, printf("Rapid fire complete");)
-      return REDUCE; // Finish this rapid fire cycle
+      return REDUCE;                 // Finish this rapid fire cycle
     } else {
       set_LED_PWM_now(json_LED_PWM); // make sure the lighs are on
     }
@@ -364,8 +364,8 @@ unsigned int reduce(void) {
 
     show_sensor_fault(record[shot_out].sensor_status);
 
-    location = compute_hit(&record[shot_out]); // Compute the score
-    if (location != MISS)                      // Was it a miss or face strike?
+    location = compute_hit(&record[shot_out]);                  // Compute the score
+    if (location != MISS)                                       // Was it a miss or face strike?
     {
       if ((json_rapid_enable == 0) && (json_tabata_enable = 0)) // If in a regular session, hold off for the follow through time
       {
@@ -373,7 +373,7 @@ unsigned int reduce(void) {
       }
       send_score(&record[shot_out], shot_out);
       rapid_red(0);
-      rapid_green(1); // Turn off the RED and turn on the GREEN
+      rapid_green(1);                          // Turn off the RED and turn on the GREEN
 
       if (IS_DC_WITNESS || IS_STEPPER_WITNESS) // Has the witness paper been enabled?
       {
@@ -401,7 +401,7 @@ unsigned int reduce(void) {
      */
     if (rapid_count != 0) // Decriment shots remaining
     {
-      rapid_count--; // in rapid fire
+      rapid_count--;      // in rapid fire
     }
 
     /*
@@ -409,9 +409,9 @@ unsigned int reduce(void) {
      */
     if (json_rapid_enable != 0) // In a rapid fire cycle
     {
-      if (rapid_count == 0) // And the shots used up?
+      if (rapid_count == 0)     // And the shots used up?
       {
-        shot_out = shot_in; // Stop processing
+        shot_out = shot_in;     // Stop processing
         break;
       }
     }
@@ -454,7 +454,7 @@ void start_new_session(void) {
    *  Clear the shot information
    */
   shot_out = 0;
-  shot_in = 0;
+  shot_in  = 0;
 
   for (i = 0; i != SHOT_SPACE; i++) {
     record[i].is_valid = false;
@@ -481,11 +481,11 @@ void start_new_session(void) {
  *
  *--------------------------------------------------------------*/
 enum {
-  TABATA_OFF = 0, // No tabata cycles at all
-  TABATA_REST,    // Tabata is doing nothing (typically 60 seconds)
-  TABATA_WARNING, // Time the warning LED is on (typically 2 seconds)
-  TABATA_DARK,    // Time the warning LED is off before the shot (typically 2 seconds)
-  TABATA_ON       // Time the TABATA lED is on (typically 5 seconds)
+  TABATA_OFF = 0,             // No tabata cycles at all
+  TABATA_REST,                // Tabata is doing nothing (typically 60 seconds)
+  TABATA_WARNING,             // Time the warning LED is on (typically 2 seconds)
+  TABATA_DARK,                // Time the warning LED is off before the shot (typically 2 seconds)
+  TABATA_ON                   // Time the TABATA lED is on (typically 5 seconds)
 } tabata_state;
 
 void tabata_enable(int enable // Rapid fire enable state
@@ -494,13 +494,13 @@ void tabata_enable(int enable // Rapid fire enable state
    * If enabled, set up the timers
    */
   if (enable != 0) {
-    set_LED_PWM_now(0); // Turn off the LEDs (maybe turn them on later)
+    set_LED_PWM_now(0);            // Turn off the LEDs (maybe turn them on later)
   } else {
     set_LED_PWM_now(json_LED_PWM); // Turn on the LED to start the cycle
   }
 
-  tabata_state = TABATA_OFF;   // Reset back to the beginning
-  json_tabata_enable = enable; // And enable
+  tabata_state       = TABATA_OFF; // Reset back to the beginning
+  json_tabata_enable = enable;     // And enable
 
   DLT(DLT_APPLICATION, {
     if (enable) {
@@ -559,15 +559,15 @@ void tabata_task(void) {
    *  Execute the Tabata state machine
    */
   switch (tabata_state) {
-  case (TABATA_OFF): // First time through after enable
+  case (TABATA_OFF):    // First time through after enable
     timer_new(&tabata_timer, json_tabata_on * ONE_SECOND);
     set_LED_PWM_now(0); // Turn off the lights
     SEND(sprintf(_xs, "{\"TABATA_REST\":%d}\r\n", json_tabata_on);)
     tabata_state = TABATA_REST;
     break;
 
-  case (TABATA_REST):      // OFF, wait for the time to expire
-    if (tabata_timer == 0) // Don't do anything unless the time expires
+  case (TABATA_REST):                // OFF, wait for the time to expire
+    if (tabata_timer == 0)           // Don't do anything unless the time expires
     {
       timer_new(&tabata_timer, json_tabata_warn_on * ONE_SECOND);
       set_LED_PWM_now(json_LED_PWM); //     Turn on the lights
@@ -588,16 +588,16 @@ void tabata_task(void) {
     if (tabata_timer == 0) // Don't do anything unless the time expires
     {
       timer_new(&tabata_timer, json_tabata_warn_off * ONE_SECOND);
-      set_LED_PWM_now(0); // Turn off the lights
+      set_LED_PWM_now(0);  // Turn off the lights
       SEND(sprintf(_xs, "{\"TABATA_DARK\":%d}\r\n", json_tabata_warn_off);)
       tabata_state = TABATA_DARK;
     }
     break;
 
-  case (TABATA_DARK):      // Dark time in seconds
-    if (tabata_timer == 0) // Don't do anything unless the time expires
+  case (TABATA_DARK):                // Dark time in seconds
+    if (tabata_timer == 0)           // Don't do anything unless the time expires
     {
-      in_shot_timer = FULL_SCALE; // Set the timer on
+      in_shot_timer = FULL_SCALE;    // Set the timer on
       timer_new(&tabata_timer, json_tabata_on * ONE_SECOND);
       set_LED_PWM_now(json_LED_PWM); // Turn on the lights
       SEND(sprintf(_xs, "{\"TABATA_ON\":%d}\r\n", json_tabata_on);)
@@ -635,17 +635,17 @@ void tabata_task(void) {
  *--------------------------------------------------------------*/
 
 static bool discard_shot(void) {
-  if ((json_rapid_enable != 0) // Rapid Fire
-      && (rapid_count == 0))   // No shots remaining
+  if ((json_rapid_enable != 0)        // Rapid Fire
+      && (rapid_count == 0))          // No shots remaining
   {
     shot_out = shot_in;
-    return true; // Discard any new shots
+    return true;                      // Discard any new shots
   }
 
   if ((json_tabata_enable != 0)       // Tabata cycle
       && (tabata_state != TABATA_ON)) // Lights not on
   {
-    shot_out = shot_in; // Discard new shots
+    shot_out = shot_in;               // Discard new shots
     return true;
   }
 
@@ -674,9 +674,9 @@ static bool discard_shot(void) {
 #define RANDOM_INTERVAL 100 // 100 signals random time, %10 is the duration
 
 enum {
-  RAPID_OFF = 0, // No rapid fire cycles at all
-  RAPID_WAIT,    // Rapid fire is doing nothing (typically 60 seconds)
-  RAPID_ON       // Time the RAPID lED is on (typically 5 seconds)
+  RAPID_OFF = 0,            // No rapid fire cycles at all
+  RAPID_WAIT,               // Rapid fire is doing nothing (typically 60 seconds)
+  RAPID_ON                  // Time the RAPID lED is on (typically 5 seconds)
 } rapid_state;
 
 void rapid_fire_task(void) {
@@ -700,7 +700,7 @@ void rapid_fire_task(void) {
     if (json_rapid_enable != 0) // Just switched to enable.
     {
       timer_new(&rapid_timer, json_rapid_wait * ONE_SECOND);
-      set_LED_PWM_now(0); // Turn off the lights
+      set_LED_PWM_now(0);       // Turn off the lights
       SEND(sprintf(_xs, "{\"RAPID_WAIT\":%d}\r\n", (int)json_rapid_wait);)
       rapid_state = RAPID_WAIT;
     }
@@ -770,11 +770,11 @@ void bye(void) {
   }
 
   switch (bye_state) {
-  case BYE_BYE: // Say Good Night Gracie!
+  case BYE_BYE:                 // Say Good Night Gracie!
     SEND(sprintf(_xs, "{\"GOOD_BYE\":0}");)
     json_tabata_enable = false; // Turn off any automatic cycles
-    json_rapid_enable = false;
-    set_LED_PWM(0); // Going to sleep
+    json_rapid_enable  = false;
+    set_LED_PWM(0);             // Going to sleep
     set_status_LED(LED_BYE);
     serial_flush(ALL);          // Purge the com port
     run_state &= ~IN_OPERATION; // Take the system out of operating mode
@@ -788,7 +788,7 @@ void bye(void) {
         || (serial_available(ALL) != 0) // Or a character to arrive
         || (is_running() != 0))         // Or a shot arrives
     {
-      bye_state = BYE_START; // wait for the swich to be released
+      bye_state = BYE_START;            // wait for the swich to be released
     } // turns up
     break;
 
@@ -849,7 +849,7 @@ void hello(void) {
  *--------------------------------------------------------------*/
 void send_keep_alive(void) {
   static int keep_alive_count = 0;
-  static int keep_alive = 0;
+  static int keep_alive       = 0;
 
   if ((json_keep_alive != 0) && (keep_alive == 0)) // Time in seconds
   {
@@ -881,7 +881,7 @@ void send_keep_alive(void) {
 void polled_target_test(void) {
 
   int i;
-  int running; // Copy of the is_running state
+  int running;               // Copy of the is_running state
 
   printf("\r\nPolled target shot test\r\n");
   freeETarget_timer_pause(); // Kill the background timer interrupt
@@ -932,7 +932,7 @@ void polled_target_test(void) {
  *
  *--------------------------------------------------------------*/
 extern int isr_state;
-void interrupt_target_test(void) {
+void       interrupt_target_test(void) {
 
   int i;
 

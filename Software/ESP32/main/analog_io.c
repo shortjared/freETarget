@@ -6,22 +6,22 @@
  *
  *****************************************************************************/
 
-#include "stdbool.h"
-#include "stdio.h"
+#include "driver/adc.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
-#include "driver/adc.h"
+#include "stdbool.h"
+#include "stdio.h"
 
-#include "freETarget.h"
-#include "diag_tools.h"
-#include "gpio.h"
 #include "analog_io.h"
+#include "dac.h"
+#include "diag_tools.h"
 #include "driver/gpio.h"
-#include "pwm.h"
+#include "freETarget.h"
+#include "gpio.h"
 #include "gpio_define.h"
 #include "i2c.h"
-#include "dac.h"
 #include "json.h"
+#include "pwm.h"
 #include "timer.h"
 
 void set_vset_PWM(unsigned int pwm);
@@ -42,23 +42,20 @@ void set_vset_PWM(unsigned int pwm);
  *
  *--------------------------------------------------------------*/
 
-void adc_init(
-    unsigned int adc_channel,    // What ADC channel are we accessing
-    unsigned int adc_attenuation // What is the channel attenuation
-)
-{
-  unsigned int adc;     // Which ADC (1/2)
-  unsigned int channel; // Which channel attached to the ADC (0-10)
+void adc_init(unsigned int adc_channel,    // What ADC channel are we accessing
+              unsigned int adc_attenuation // What is the channel attenuation
+) {
+  unsigned int adc;                        // Which ADC (1/2)
+  unsigned int channel;                    // Which channel attached to the ADC (0-10)
 
-  adc = ADC_ADC(adc_channel); // What ADC are we on
+  adc     = ADC_ADC(adc_channel);          // What ADC are we on
   channel = ADC_CHANNEL(adc_channel);
 
   /*
    * Setup the channel
    */
   ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
-  switch (adc)
-  {
+  switch (adc) {
   case 1:
     ESP_ERROR_CHECK(adc1_config_channel_atten(channel, adc_attenuation));
     break;
@@ -89,22 +86,19 @@ void adc_init(
  * https://docs.espressif.com/projects/esp-idf/en/v4.4/esp32/api-reference/peripherals/adc.html
  *
  *--------------------------------------------------------------*/
-unsigned int adc_read(
-    unsigned int adc_channel // What input are we reading?
-)
-{
-  unsigned int adc;     // Which ADC (1/2)
-  unsigned int channel; // Which channel attached to the ADC (0-10)
-  int raw;              // Raw value from the ADC
+unsigned int adc_read(unsigned int adc_channel // What input are we reading?
+) {
+  unsigned int adc;                            // Which ADC (1/2)
+  unsigned int channel;                        // Which channel attached to the ADC (0-10)
+  int          raw;                            // Raw value from the ADC
 
-  adc = ADC_ADC(adc_channel);         // What ADC are we on
-  channel = ADC_CHANNEL(adc_channel); // What channel are we using
+  adc     = ADC_ADC(adc_channel);              // What ADC are we on
+  channel = ADC_CHANNEL(adc_channel);          // What channel are we using
 
   /*
    *  Read the appropriate channel
    */
-  switch (adc)
-  {
+  switch (adc) {
   case 1:
     raw = adc1_get_raw(channel);
     break;
@@ -120,13 +114,12 @@ unsigned int adc_read(
   return raw;
 }
 
-#define V12_RESISITOR ((40.2 + 5.0) / 5.0) // Resistor divider
-#define V12_ATTENUATION 3.548              // 11 DB
-#define V12_REF 1.1                        // ESP32 VREF
-#define V12_CAL 0.88
-float v12_supply(void)
-{
-  float raw; // Raw voltage from ADC
+#define V12_RESISITOR   ((40.2 + 5.0) / 5.0) // Resistor divider
+#define V12_ATTENUATION 3.548                // 11 DB
+#define V12_REF         1.1                  // ESP32 VREF
+#define V12_CAL         0.88
+float v12_supply(void) {
+  float raw;                                 // Raw voltage from ADC
 
   raw = (float)adc_read(V_12_LED);
 
@@ -151,12 +144,9 @@ float v12_supply(void)
  *--------------------------------------------------------------*/
 static unsigned int old_LED_percent = 0;
 
-void set_LED_PWM_now(
-    int new_LED_percent // Desired LED level (0-100%)
-)
-{
-  if (new_LED_percent == old_LED_percent)
-  {
+void set_LED_PWM_now(int new_LED_percent // Desired LED level (0-100%)
+) {
+  if (new_LED_percent == old_LED_percent) {
     return;
   }
 
@@ -169,13 +159,10 @@ void set_LED_PWM_now(
   return;
 }
 
-void set_LED_PWM // Theatre lighting
-    (
-        int new_LED_percent // Desired LED level (0-100%)
-    )
-{
-  if (new_LED_percent == old_LED_percent)
-  {
+void set_LED_PWM         // Theatre lighting
+    (int new_LED_percent // Desired LED level (0-100%)
+    ) {
+  if (new_LED_percent == old_LED_percent) {
     return;
   }
 
@@ -187,13 +174,10 @@ void set_LED_PWM // Theatre lighting
   while (new_LED_percent != old_LED_percent) // Change in the brightness level?
   {
 
-    if (new_LED_percent < old_LED_percent)
-    {
-      old_LED_percent--; // Ramp the value down
-    }
-    else
-    {
-      old_LED_percent++; // Ramp the value up
+    if (new_LED_percent < old_LED_percent) {
+      old_LED_percent--;                         // Ramp the value down
+    } else {
+      old_LED_percent++;                         // Ramp the value up
     }
     pwm_set(LED_PWM, old_LED_percent);           // Write the value out
     timer_delay((unsigned long)ONE_SECOND / 50); // Worst case, take 2 seconds to get there
@@ -228,8 +212,7 @@ void set_LED_PWM // Theatre lighting
 //                                       0      1  2  3  4  5  6  7  8  9   A   B   C   D   E   F
 const static unsigned int version[] = {REV_510, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, REV_520};
 
-unsigned int revision(void)
-{
+unsigned int revision(void) {
   int revision;
 
   /*
@@ -260,10 +243,9 @@ unsigned int revision(void)
 static float t_c; // Temperature from sensor
 static float rh;  // Humidity from sensor
 
-double temperature_C(void)
-{
+double temperature_C(void) {
   unsigned char temp_buffer[10];
-  int raw;
+  int           raw;
   /*
    * Read in the temperature and humidity together
    */
@@ -282,7 +264,7 @@ double temperature_C(void)
   raw = (temp_buffer[0] << 8) + temp_buffer[1];
   t_c = -45.0 + (175.0 * (float)raw / 65535.0);
   raw = (temp_buffer[3] << 8) + temp_buffer[4];
-  rh = 100.0 * (float)raw / 65535.0;
+  rh  = 100.0 * (float)raw / 65535.0;
 
   return t_c;
 }
@@ -302,8 +284,7 @@ double temperature_C(void)
  * A simple interrogation is used.
  *
  *--------------------------------------------------------------*/
-double humidity_RH(void)
-{
+double humidity_RH(void) {
   temperature_C(); // Read in the temperature and humidity
   return rh;
 }
@@ -321,21 +302,18 @@ double humidity_RH(void)
  * Figure 5-8
  *
  *--------------------------------------------------------------*/
-void set_VREF(void)
-{
+void set_VREF(void) {
   float volts[4];
 
   DLT(DLT_CRITICAL, printf("Set VREF: %4.2f %4.2f", json_vref_lo, json_vref_hi);)
 
   if ((json_vref_lo == 0) // Check for an uninitialized VREF
-      || (json_vref_hi == 0))
-  {
-    json_vref_lo = 1.25; // and force to something other than 0
-    json_vref_hi = 2.00; // Otherwise the sensors continioustly interrupt
+      || (json_vref_hi == 0)) {
+    json_vref_lo = 1.25;  // and force to something other than 0
+    json_vref_hi = 2.00;  // Otherwise the sensors continioustly interrupt
   }
 
-  if (json_vref_lo >= json_vref_hi)
-  {
+  if (json_vref_lo >= json_vref_hi) {
     DLT(DLT_CRITICAL, printf("ERROR: json_vref_lo or json_vref_hi are out of order.");)
   }
 
@@ -360,8 +338,7 @@ void set_VREF(void)
  *----------------------------------------------------------------
  *
  *--------------------------------------------------------------*/
-void analog_input_test(void)
-{
+void analog_input_test(void) {
   printf("\r\nAnalog Input ");
   printf("\r\n12V %5.3f", v12_supply());
   printf("\r\nBoard Rev %d", revision());
