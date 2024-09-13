@@ -18,8 +18,8 @@
 // #define DAC_WRITE 0x58    // Single write
 #define VREF_LO 0
 #define VREF_HI 1
-#define VREF_2 2
-#define VREF_3 3
+#define VREF_2  2
+#define VREF_3  3
 
 /*
  *  Functions

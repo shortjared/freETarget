@@ -45,39 +45,39 @@
 #include "wifi.h"
 #include "nonvol.h"
 
-#define DEFAULT_IP 192, 168, 10, 9
-#define PORT 1090
-#define KEEPALIVE_IDLE true
+#define DEFAULT_IP         192, 168, 10, 9
+#define PORT               1090
+#define KEEPALIVE_IDLE     true
 #define KEEPALIVE_INTERVAL 100
-#define KEEPALIVE_COUNT 50
-#define MAX_SOCKETS 4        // Allow for four sockets
-#define AVAILABLE_SOCKET -1  // The socket is unused
-#define GREETING "CONNECTED" // Message to send on connection
+#define KEEPALIVE_COUNT    50
+#define MAX_SOCKETS        4           // Allow for four sockets
+#define AVAILABLE_SOCKET   -1          // The socket is unused
+#define GREETING           "CONNECTED" // Message to send on connection
 
 /*
  * Macros
  */
-#define WIFI_CONNECTED_BIT BIT0 // we are connected to the AP with an IP
-#define WIFI_FAIL_BIT BIT1      // we failed to connect after the maximum amount of retries */
-#define WIFI_MAX_RETRY 3        // Try 3x
+#define WIFI_CONNECTED_BIT                BIT0 // we are connected to the AP with an IP
+#define WIFI_FAIL_BIT                     BIT1 // we failed to connect after the maximum amount of retries */
+#define WIFI_MAX_RETRY                    3    // Try 3x
 #define ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD WIFI_AUTH_OPEN
 
 /*
  * Variables
  */
-static wifi_config_t WiFi_config;
-static EventGroupHandle_t s_wifi_event_group;
+static wifi_config_t                WiFi_config;
+static EventGroupHandle_t           s_wifi_event_group;
 static esp_event_handler_instance_t instance_any_id;
 static esp_event_handler_instance_t instance_got_ip;
-static int s_retry_num = 0;
-static int socket_list[MAX_SOCKETS];             // Space to remember four sockets
-static esp_netif_ip_info_t ipInfo;               // IP Address of the access point
-static void WiFi_start_new_connection(int sock); // Socket token to use
+static int                          s_retry_num = 0;
+static int                          socket_list[MAX_SOCKETS];            // Space to remember four sockets
+static esp_netif_ip_info_t          ipInfo;                              // IP Address of the access point
+static void                         WiFi_start_new_connection(int sock); // Socket token to use
 
 /*
  * Private Functions
  */
-void WiFi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+void        WiFi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 static void tcpip_server_io(void); // Manage TCPIP traffic
 
 esp_err_t esp_base_mac_addr_get(uint8_t *mac);
@@ -138,7 +138,7 @@ void WiFi_init(void)
  *******************************************************************************/
 void WiFi_AP_init(void)
 {
-    esp_netif_t *wifiAP;
+    esp_netif_t       *wifiAP;
     wifi_init_config_t WiFi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 
     DLT(DLT_CRITICAL, printf("WiFi_AP_init()\r\n");)
@@ -169,7 +169,7 @@ void WiFi_AP_init(void)
 
     sprintf((char *)&WiFi_config.ap.ssid, "FET-%s", names[json_name_id]); // SSID Name ->FET-name
     WiFi_config.ap.ssid_len = strlen(json_wifi_ssid);
-    WiFi_config.ap.channel = json_wifi_channel;
+    WiFi_config.ap.channel  = json_wifi_channel;
     strcpy((char *)&WiFi_config.ap.password, json_wifi_pwd);
     WiFi_config.ap.max_connection = 4;
     if (json_wifi_pwd[0] == 0)
@@ -240,7 +240,7 @@ void WiFi_station_init(void)
     {
         WiFi_config.sta.threshold.authmode = WIFI_AUTH_WEP;
     }
-    WiFi_config.sta.pmf_cfg.capable = true;
+    WiFi_config.sta.pmf_cfg.capable  = true;
     WiFi_config.sta.pmf_cfg.required = false;
     esp_wifi_set_mode(WIFI_MODE_STA);
     esp_wifi_set_config(WIFI_IF_STA, &WiFi_config);
@@ -249,31 +249,26 @@ void WiFi_station_init(void)
     /*
      * Wait here for an event to occur
      */
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                                           WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-                                           pdFALSE,
-                                           pdFALSE,
-                                           portMAX_DELAY);
+    EventBits_t bits =
+        xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
     /*
      *  The target has connected to an access point
      */
-    DLT(DLT_CRITICAL,
+    DLT(DLT_CRITICAL, {
+        if (bits & WIFI_CONNECTED_BIT)
         {
-            if (bits & WIFI_CONNECTED_BIT)
-            {
-                WiFi_my_IP_address(str_c);
-                printf("Connected to ap SSID: %s\r\nWiFi_IP_ADDRESS: \"%s\",", json_wifi_ssid, str_c);
-            }
-            else if (bits & WIFI_FAIL_BIT)
-            {
-                printf("Failed to connect to SSID:%s, password:%s",
-                       json_wifi_ssid, json_wifi_pwd);
-            }
-            else
-            {
-                printf("UNEXPECTED EVENT");
-            }
-        })
+            WiFi_my_IP_address(str_c);
+            printf("Connected to ap SSID: %s\r\nWiFi_IP_ADDRESS: \"%s\",", json_wifi_ssid, str_c);
+        }
+        else if (bits & WIFI_FAIL_BIT)
+        {
+            printf("Failed to connect to SSID:%s, password:%s", json_wifi_ssid, json_wifi_pwd);
+        }
+        else
+        {
+            printf("UNEXPECTED EVENT");
+        }
+    })
     /*
      *  All done
      */
@@ -301,11 +296,7 @@ void WiFi_station_init(void)
  * This function only relates to the WiFi connecting to the SSID.
  *
  *******************************************************************************/
-void WiFi_event_handler(
-    void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data)
+void WiFi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
 
@@ -421,11 +412,11 @@ void WiFi_tcp_server_task(void *pvParameters)
  *******************************************************************************/
 static void tcpip_server_io(void)
 {
-    int length;
+    int  length;
     char rx_buffer[128];
-    int to_send;
-    int i;
-    int buffer_offset;
+    int  to_send;
+    int  i;
+    int  buffer_offset;
     bool new_socket_closed;
 
     new_socket_closed = false; // Was a socket closed this cycle?
@@ -446,7 +437,7 @@ static void tcpip_server_io(void)
                     if (length <= 0)
                     {
                         close(socket_list[i]);
-                        socket_list[i] = AVAILABLE_SOCKET;
+                        socket_list[i]    = AVAILABLE_SOCKET;
                         new_socket_closed = true;
                         break;
                     }
@@ -511,7 +502,7 @@ static void tcpip_server_io(void)
  *******************************************************************************/
 void tcpip_socket_poll_0(void *parameters)
 {
-    int length;
+    int  length;
     char rx_buffer[256];
 
     DLT(DLT_CRITICAL, printf("tcp_socket_poll_0()");)
@@ -532,7 +523,7 @@ void tcpip_socket_poll_0(void *parameters)
 
 void tcpip_socket_poll_1(void *parameters)
 {
-    int length;
+    int  length;
     char rx_buffer[256];
 
     DLT(DLT_CRITICAL, printf("tcp_socket_poll_1()");)
@@ -553,7 +544,7 @@ void tcpip_socket_poll_1(void *parameters)
 
 void tcpip_socket_poll_2(void *parameters)
 {
-    int length;
+    int  length;
     char rx_buffer[256];
 
     DLT(DLT_CRITICAL, printf("tcp_socket_poll_2()");)
@@ -574,7 +565,7 @@ void tcpip_socket_poll_2(void *parameters)
 
 void tcpip_socket_poll_3(void *parameters)
 {
-    int length;
+    int  length;
     char rx_buffer[256];
 
     DLT(DLT_CRITICAL, printf("tcp_socket_poll_0()");)
@@ -613,19 +604,19 @@ void tcpip_socket_poll_3(void *parameters)
  *******************************************************************************/
 void tcpip_accept_poll(void *parameters)
 {
-    char addr_str[128];
-    int ip_protocol = 0;
-    int keepAlive = 1;
-    int keepIdle = KEEPALIVE_IDLE;
-    int keepInterval = KEEPALIVE_INTERVAL;
-    int keepCount = KEEPALIVE_COUNT;
+    char                    addr_str[128];
+    int                     ip_protocol  = 0;
+    int                     keepAlive    = 1;
+    int                     keepIdle     = KEEPALIVE_IDLE;
+    int                     keepInterval = KEEPALIVE_INTERVAL;
+    int                     keepCount    = KEEPALIVE_COUNT;
     struct sockaddr_storage dest_addr;
-    int listen_sock;
-    int option = 1;
+    int                     listen_sock;
+    int                     option = 1;
     struct sockaddr_storage source_addr; // Large enough for both IPv4 or IPv6
-    socklen_t addr_len = sizeof(source_addr);
-    int sock;
-    int i;
+    socklen_t               addr_len = sizeof(source_addr);
+    int                     sock;
+    int                     i;
 
     DLT(DLT_CRITICAL, printf("tcp_accept_poll()");)
 
@@ -638,10 +629,10 @@ void tcpip_accept_poll(void *parameters)
     }
 
     struct sockaddr_in *dest_addr_ip4 = (struct sockaddr_in *)&dest_addr;
-    dest_addr_ip4->sin_addr.s_addr = htonl(INADDR_ANY);
-    dest_addr_ip4->sin_family = AF_INET;
-    dest_addr_ip4->sin_port = htons(PORT);
-    ip_protocol = IPPROTO_IP;
+    dest_addr_ip4->sin_addr.s_addr    = htonl(INADDR_ANY);
+    dest_addr_ip4->sin_family         = AF_INET;
+    dest_addr_ip4->sin_port           = htons(PORT);
+    ip_protocol                       = IPPROTO_IP;
 
     listen_sock = socket(AF_INET, SOCK_STREAM, ip_protocol);
     if (listen_sock < 0)
@@ -679,11 +670,10 @@ void tcpip_accept_poll(void *parameters)
             setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &keepInterval, sizeof(int));
             setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &keepCount, sizeof(int));
 
-            DLT(DLT_INFO,
-                {
-                    inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr, addr_str, sizeof(addr_str) - 1);
-                    printf("Socket accepted ip address: %s\r\n", addr_str);
-                })
+            DLT(DLT_INFO, {
+                inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr, addr_str, sizeof(addr_str) - 1);
+                printf("Socket accepted ip address: %s\r\n", addr_str);
+            })
             set_status_LED(LED_STATION_CN);
         }
     }
@@ -713,8 +703,7 @@ void tcpip_accept_poll(void *parameters)
  * scores.
  *
  *******************************************************************************/
-static void WiFi_start_new_connection(
-    int sock // Socket token to use
+static void WiFi_start_new_connection(int sock // Socket token to use
 )
 {
     int i, j;
@@ -785,9 +774,9 @@ void WiFi_loopback_test(void)
 
 void WiFi_loopback_task(void *parameters)
 {
-    int length;
+    int  length;
     char buffer[1024];
-    int i;
+    int  i;
 
     tcpip_app_2_queue("Hello", 5);
 
@@ -819,8 +808,7 @@ void WiFi_loopback_task(void *parameters)
  *
  ****************************************************************************/
 #define TO_IP(x) ((int)x) & 0xff, ((int)x >> 8) & 0xff, ((int)x >> 16) & 0xff, ((int)x >> 24) & 0xff
-void WiFi_my_IP_address(
-    char *s // Where to return the string
+void WiFi_my_IP_address(char *s // Where to return the string
 )
 {
     sprintf(s, "%d.%d.%d.%d", TO_IP(ipInfo.ip.addr));
@@ -836,8 +824,7 @@ void WiFi_my_IP_address(
  * @return:   None
  *
  ****************************************************************************/
-void WiFi_MAC_address(
-    char *mac // Where to return the string
+void WiFi_MAC_address(char *mac // Where to return the string
 )
 {
     esp_base_mac_addr_get((uint8_t *)mac);
@@ -910,67 +897,67 @@ void WiFi_configuration(void)
             printf("%c", ch);
             switch (ch)
             {
-            case '!': // Exit
-                printf("\r\nDone\r\n");
-                return;
+                case '!': // Exit
+                    printf("\r\nDone\r\n");
+                    return;
 
-            case '1': // SSID
-                printf("\r\nEnter SSID:");
-                if (get_string(_xs, SSID_SIZE))
-                {
-                    strcpy(json_wifi_ssid, _xs);
-                    nvs_set_str(my_handle, NONVOL_WIFI_SSID, json_wifi_ssid);
-                }
-                break;
+                case '1': // SSID
+                    printf("\r\nEnter SSID:");
+                    if (get_string(_xs, SSID_SIZE))
+                    {
+                        strcpy(json_wifi_ssid, _xs);
+                        nvs_set_str(my_handle, NONVOL_WIFI_SSID, json_wifi_ssid);
+                    }
+                    break;
 
-            case '2': // PWD
-                printf("\r\nEnter Password:");
-                if (get_string(_xs, PWD_SIZE))
-                {
-                    strcpy(json_wifi_pwd, _xs);
-                    nvs_set_str(my_handle, NONVOL_WIFI_PWD, json_wifi_pwd);
-                }
-                break;
+                case '2': // PWD
+                    printf("\r\nEnter Password:");
+                    if (get_string(_xs, PWD_SIZE))
+                    {
+                        strcpy(json_wifi_pwd, _xs);
+                        nvs_set_str(my_handle, NONVOL_WIFI_PWD, json_wifi_pwd);
+                    }
+                    break;
 
-            case '3': // WiFi Channel
-                printf("\r\nWiFi channel (1-11):");
-                if (get_string(_xs, 2))
-                {
-                    json_wifi_channel = atoi(_xs);
-                    nvs_set_i32(my_handle, NONVOL_WIFI_CHANNEL, json_wifi_channel);
-                }
-                break;
+                case '3': // WiFi Channel
+                    printf("\r\nWiFi channel (1-11):");
+                    if (get_string(_xs, 2))
+                    {
+                        json_wifi_channel = atoi(_xs);
+                        nvs_set_i32(my_handle, NONVOL_WIFI_CHANNEL, json_wifi_channel);
+                    }
+                    break;
 
-            case '4': // Hide Accesss point SSID
-                printf("\r\nWiFi hide SSID (0/1):");
-                if (get_string(_xs, 2))
-                {
-                    json_wifi_hidden = atoi(_xs);
-                    nvs_set_i32(my_handle, NONVOL_WIFI_HIDDEN, json_wifi_hidden);
-                }
-                break;
+                case '4': // Hide Accesss point SSID
+                    printf("\r\nWiFi hide SSID (0/1):");
+                    if (get_string(_xs, 2))
+                    {
+                        json_wifi_hidden = atoi(_xs);
+                        nvs_set_i32(my_handle, NONVOL_WIFI_HIDDEN, json_wifi_hidden);
+                    }
+                    break;
 
 #if (BUIILD_HTTP || BUILD_HTTPS || BUILD_SIMPLE)
-            case '4': // Enable remote URL
-                printf("\r\nEnable remote URL :");
-                if (get_string(_xs, 2))
-                {
-                    json_remote_active = atoi(_xs);
-                    nvs_set_i32(my_handle, NONVOL_REMOTE_ACTIVE, json_remote_active);
-                }
-                break;
+                case '4': // Enable remote URL
+                    printf("\r\nEnable remote URL :");
+                    if (get_string(_xs, 2))
+                    {
+                        json_remote_active = atoi(_xs);
+                        nvs_set_i32(my_handle, NONVOL_REMOTE_ACTIVE, json_remote_active);
+                    }
+                    break;
 
-            case '5': // Remote Server URL
-                printf("\r\nEnter remote server URL:");
-                if (get_string(_xs, URL_SIZE))
-                {
-                    strcpy(json_remote_url, _xs);
-                    nvs_set_str(my_handle, NONVOL_REMOTE_URL, json_remote_url);
-                }
-                break;
+                case '5': // Remote Server URL
+                    printf("\r\nEnter remote server URL:");
+                    if (get_string(_xs, URL_SIZE))
+                    {
+                        strcpy(json_remote_url, _xs);
+                        nvs_set_str(my_handle, NONVOL_REMOTE_URL, json_remote_url);
+                    }
+                    break;
 #endif
-            default:
-                break;
+                default:
+                    break;
             }
             printf("\r\n");
         }
