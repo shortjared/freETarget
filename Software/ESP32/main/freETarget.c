@@ -1010,6 +1010,12 @@ void       interrupt_target_test(void)
     return;
 }
 
+// Default sensor in the case we can't find anything
+// This is used to keep the compiler from complaining and still be able to return LED_READY
+static const sensor_ID_t default_sensor = {
+    .diag_LED = LED_READY,
+};
+
 /*----------------------------------------------------------------
  *
  * @function: diag_LED
@@ -1026,8 +1032,7 @@ void       interrupt_target_test(void)
  * corresponding to the bit set in the run latch
  *
  *--------------------------------------------------------------*/
-sensor_ID_t *find_sensor(unsigned int run_mask // Run mask to look for a match
-)
+sensor_ID_t *find_sensor(unsigned int run_mask) // run mask to look for a match
 {
     unsigned int i;
 
@@ -1050,5 +1055,5 @@ sensor_ID_t *find_sensor(unsigned int run_mask // Run mask to look for a match
     /*
      * Not found, return null
      */
-    return LED_READY;
+    return (sensor_ID_t *)&default_sensor;
 }
