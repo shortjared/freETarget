@@ -14,11 +14,14 @@
  *
  * ----------------------------------------------------*/
 #include "stdbool.h"
-#include "driver/timer.h"
+#include "driver/gptimer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "freETarget.h"
 #include "diag_tools.h"
 #include "driver/gpio.h"
 #include "json.h"
+#include "esp_attr.h"
 
 /*
  * Definitions
@@ -47,7 +50,8 @@ static volatile unsigned long  isr_timer;        // Interrupt timer
 /*
  *  Function Prototypes
  */
-static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args);
+static bool __attribute__((section(".iram1")))
+freeETarget_timer_isr_callback(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx);
 
 /*-----------------------------------------------------
  *
@@ -77,44 +81,57 @@ static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args);
 #define TIMER_SCALE   (1000 / TIMER_DIVIDER) // convert counter value to seconds
 #define ONE_MS        (80 * TIMER_SCALE)     // 1 ms timer interrupt
 
-timer_config_t config = {
-    .clk_src     = RMT_CLK_SRC_APB,
-    .divider     = TIMER_DIVIDER,
-    .counter_dir = TIMER_COUNT_UP,
-    .counter_en  = TIMER_PAUSE,
-    .alarm_en    = TIMER_ALARM_EN,
-    .auto_reload = 1,
-}; // default clock source is APB
+// Configure the GPTimer
+gptimer_config_t timer_config = {
+    .clk_src       = GPTIMER_CLK_SRC_DEFAULT,
+    .direction     = GPTIMER_COUNT_UP,
+    .resolution_hz = 1000000, // 1MHz, 1 tick=1us
+};
+
+// Create a new GPTimer instance
+gptimer_handle_t gptimer = NULL;
 
 void freeETarget_timer_init(void)
 {
     DLT(DLT_CRITICAL, printf("freeETarget_timer_init()");)
-    timer_init(TIMER_GROUP_0, TIMER_1, &config);
-    timer_set_counter_value(TIMER_GROUP_0, TIMER_1, 0);    // Start the timer at 0
-    timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, ONE_MS); // Trigger on this value
-    timer_enable_intr(TIMER_GROUP_0, TIMER_1);             // Interrupt associated with this interrupt
-    timer_isr_callback_add(TIMER_GROUP_0, TIMER_1, freeETarget_timer_isr_callback, NULL, 0);
-    timer_start(TIMER_GROUP_0, TIMER_1);
+
+    ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
+
+    // Set up the alarm callback
+    gptimer_event_callbacks_t cbs = {
+        .on_alarm = freeETarget_timer_isr_callback,
+    };
+    ESP_ERROR_CHECK(gptimer_register_event_callbacks(gptimer, &cbs, NULL));
+
+    // Configure the alarm
+    gptimer_alarm_config_t alarm_config = {
+        .reload_count               = 0,
+        .alarm_count                = ONE_MS, // Assuming ONE_MS is defined elsewhere
+        .flags.auto_reload_on_alarm = true,
+    };
+    ESP_ERROR_CHECK(gptimer_set_alarm_action(gptimer, &alarm_config));
+
+    // Enable and start the timer
+    ESP_ERROR_CHECK(gptimer_enable(gptimer));
+    ESP_ERROR_CHECK(gptimer_start(gptimer));
+
+    // Initialize other variables
     timer_new(&isr_timer, 0);
     shot_in  = 0;
     shot_out = 0;
 
-    /*
-     *  Timer running. return
-     */
+    // Timer running, return
     return;
 }
 
-void freeETarget_timer_pause(void) // Stop the timer
+void freeETarget_timer_pause(void)
 {
-    timer_pause(TIMER_GROUP_0, TIMER_1);
-    return;
+    ESP_ERROR_CHECK(gptimer_stop(gptimer));
 }
 
-void freeETarget_timer_start(void) // Start the timer
+void freeETarget_timer_start(void)
 {
-    timer_start(TIMER_GROUP_0, TIMER_1);
-    return;
+    ESP_ERROR_CHECK(gptimer_start(gptimer));
 }
 
 /*-----------------------------------------------------
@@ -145,7 +162,8 @@ void freeETarget_timer_start(void) // Start the timer
  *
  *
  *-----------------------------------------------------*/
-static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args)
+static bool __attribute__((section(".iram1")))
+freeETarget_timer_isr_callback(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx)
 {
     BaseType_t   high_task_awoken = pdFALSE;
     unsigned int pin; // Value read from the port
@@ -153,21 +171,17 @@ static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args)
     IF_NOT(IN_OPERATION)
     return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 
-    /*
-     * Decide what to do if based on what inputs are present
-     */
+    // Decide what to do based on what inputs are present
     pin = is_running(); // Read in the RUN bits
 
-    /*
-     * Read the shot based on the ISR state
-     */
+    // Read the shot based on the ISR state
     switch (isr_state)
     {
         case PORT_STATE_IDLE: // Idle, Wait for something to show up
             if (pin != 0)     // Something has triggered
             {
                 isr_timer = MAX_WAIT_TIME;   // Start the wait timer
-                isr_state = PORT_STATE_WAIT; // Got something wait for all of the sensors tro trigger
+                isr_state = PORT_STATE_WAIT; // Got something wait for all of the sensors to trigger
             }
             break;
 
@@ -189,7 +203,7 @@ static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args)
             }
             else
             {
-                if (isr_timer == 0) // Make sure there is no rigning
+                if (isr_timer == 0) // Make sure there is no ringing
                 {
                     arm_timers();                // and arm for the next time
                     isr_state = PORT_STATE_IDLE; // and go back to idle
@@ -198,9 +212,7 @@ static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args)
             break;
     }
 
-    /*
-     * Return from interrupts
-     */
+    // Return from interrupt
     return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 }
 

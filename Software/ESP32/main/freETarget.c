@@ -791,12 +791,10 @@ static enum bye_state {
     BYE_BYE = 0, // Wait for the timer to run out
     BYE_HOLD,    // Wait for the MFS to be pressed
     BYE_START    // Go back into service
-};
+} bye_state = BYE_BYE;
 
 void bye(void)
 {
-    static int bye_state = BYE_BYE;
-
     /*
      * The BYE function does not work if we are a token ring.
      */
@@ -891,8 +889,8 @@ void hello(void)
  *--------------------------------------------------------------*/
 void send_keep_alive(void)
 {
-    static int keep_alive_count = 0;
-    static int keep_alive       = 0;
+    static int                    keep_alive_count = 0;
+    static volatile unsigned long keep_alive       = 0;
 
     if ((json_keep_alive != 0) && (keep_alive == 0)) // Time in seconds
     {
