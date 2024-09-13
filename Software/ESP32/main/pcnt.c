@@ -17,7 +17,6 @@
 #include "stdbool.h"
 #include "driver/pulse_cnt.h"
 #include "driver/gpio.h"
-#include "driver/timer.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "nonvol.h"

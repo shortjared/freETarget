@@ -8,21 +8,23 @@
 
 #include "stdbool.h"
 #include "stdio.h"
-#include "driver/gpio.h"
-#include "driver/ledc.h"
-#include "driver/adc.h"
-
 #include "freETarget.h"
 #include "diag_tools.h"
 #include "gpio.h"
 #include "analog_io.h"
-#include "driver/gpio.h"
 #include "pwm.h"
 #include "gpio_define.h"
 #include "i2c.h"
 #include "dac.h"
 #include "json.h"
 #include "timer.h"
+#include "driver/gpio.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+
+static adc_oneshot_unit_handle_t adc1_handle;
+static adc_oneshot_unit_handle_t adc2_handle;
 
 void set_vset_PWM(unsigned int pwm);
 
@@ -46,25 +48,30 @@ void adc_init(unsigned int adc_channel,    // What ADC channel are we accessing
               unsigned int adc_attenuation // What is the channel attenuation
 )
 {
-    unsigned int adc;     // Which ADC (1/2)
-    unsigned int channel; // Which channel attached to the ADC (0-10)
+    adc_oneshot_unit_init_cfg_t init_config1 = {
+        .unit_id = ADC_UNIT_1,
+    };
+    adc_oneshot_unit_init_cfg_t init_config2 = {
+        .unit_id = ADC_UNIT_2,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config2, &adc2_handle));
 
-    adc     = ADC_ADC(adc_channel); // What ADC are we on
-    channel = ADC_CHANNEL(adc_channel);
+    adc_oneshot_chan_cfg_t config = {
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .atten    = adc_attenuation,
+    };
 
-    /*
-     * Setup the channel
-     */
-    ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
-    switch (adc)
+    unsigned int adc     = ADC_ADC(adc_channel);
+    unsigned int channel = ADC_CHANNEL(adc_channel);
+
+    if (adc == 1)
     {
-        case 1:
-            ESP_ERROR_CHECK(adc1_config_channel_atten(channel, adc_attenuation));
-            break;
-
-        case 2:
-            ESP_ERROR_CHECK(adc2_config_channel_atten(channel, adc_attenuation));
-            break;
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, channel, &config));
+    }
+    else if (adc == 2)
+    {
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc2_handle, channel, &config));
     }
 
     /*
@@ -91,30 +98,19 @@ void adc_init(unsigned int adc_channel,    // What ADC channel are we accessing
 unsigned int adc_read(unsigned int adc_channel // What input are we reading?
 )
 {
-    unsigned int adc;     // Which ADC (1/2)
-    unsigned int channel; // Which channel attached to the ADC (0-10)
-    int          raw;     // Raw value from the ADC
+    unsigned int adc     = ADC_ADC(adc_channel);
+    unsigned int channel = ADC_CHANNEL(adc_channel);
+    int          raw     = 0;
 
-    adc     = ADC_ADC(adc_channel);     // What ADC are we on
-    channel = ADC_CHANNEL(adc_channel); // What channel are we using
-
-    /*
-     *  Read the appropriate channel
-     */
-    switch (adc)
+    if (adc == 1)
     {
-        case 1:
-            raw = adc1_get_raw(channel);
-            break;
-
-        case 2:
-            adc2_get_raw(channel, ADC_WIDTH_BIT_DEFAULT, &raw);
-            break;
+        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, channel, &raw));
+    }
+    else if (adc == 2)
+    {
+        ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, channel, &raw));
     }
 
-    /*
-     *  Done
-     */
     return raw;
 }
 

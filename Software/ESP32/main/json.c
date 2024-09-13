@@ -142,10 +142,9 @@ const json_message_t JSON[] = {
     //    token                 value stored in RAM     double stored in RAM        convert    service fcn()     NONVOL
     //    location      Initial Value
     {"\"ANGLE\":", &json_sensor_angle, 0, IS_INT32, 0, NONVOL_SENSOR_ANGLE, 45}, // Locate the sensor angles
-    {"\"BYE\":", 0, 0, IS_VOID, (void (*)(void *)) & bye_wrapper, 0,
-     0}, // Shut down the target
-         //  {"\"CALIBREx10\":",     &json_calibre_x10,                 0,                IS_INT32,  0,
-         //  NONVOL_CALIBRE_X10,     45 },    // Enter the projectile calibre (mm x 10)
+    {"\"BYE\":", 0, 0, IS_VOID, (void (*)(void *)) & bye_wrapper, 0, 0},         // Shut down the target
+    //  {"\"CALIBREx10\":",     &json_calibre_x10,                 0,                IS_INT32,  0,
+    //  NONVOL_CALIBRE_X10,     45 },    // Enter the projectile calibre (mm x 10)
     {"\"DELAY\":", 0, 0, IS_INT32, 0, 0, 0},                                        // Delay TBD seconds
     {"\"ECHO\":", 0, 0, IS_VOID, (void (*)(void *)) & show_echo, 0, 0},             // Echo test
     {"\"FACE_STRIKE\":", &json_face_strike, 0, IS_INT32, 0, NONVOL_FACE_STRIKE, 0}, // Face Strike Count
@@ -209,10 +208,9 @@ const json_message_t JSON[] = {
      2000},                                                                            // High trip point value (Volts)
     {"\"WC\"", 0, 0, IS_VOID, (void (*)(void *)) & WiFi_configuration, 0, 6},          // Simple WiFi setup command
     {"\"WIFI_CHANNEL\":", &json_wifi_channel, 0, IS_INT32, 0, NONVOL_WIFI_CHANNEL, 6}, // Set the wifi channel
-    {"\"WIFI_HIDDEN\":", &json_wifi_hidden, 0, IS_INT32, 0, NONVOL_WIFI_HIDDEN,
-     0}, // Hide the SSID
-         // {"\"WIFI_IP\":",        (int*)&json_wifi_ip,               0,                IS_TEXT+IP_SIZE, 0,
-         // NONVOL_WIFI_IP,          0 },    // Static IP address
+    {"\"WIFI_HIDDEN\":", &json_wifi_hidden, 0, IS_INT32, 0, NONVOL_WIFI_HIDDEN, 0},    // Hide the SSID
+    // {"\"WIFI_IP\":",        (int*)&json_wifi_ip,               0,                IS_TEXT+IP_SIZE, 0,
+    // NONVOL_WIFI_IP,          0 },    // Static IP address
     {"\"WIFI_PWD\":", (int *)&json_wifi_pwd, 0, IS_SECRET + PWD_SIZE, 0, NONVOL_WIFI_PWD,
      0}, // Password of SSID to attach to
     {"\"WIFI_RESET\":", &json_wifi_reset_first, 0, IS_INT32, 0, NONVOL_WIFI_RESET_FIRST,
