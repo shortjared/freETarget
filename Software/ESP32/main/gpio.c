@@ -269,37 +269,37 @@ void set_status_LED(
 
       switch (*new_state)
       {
-      case 'r':              // RED LED
-        status[i].blink = 1; // Turn on Blinking
-      case 'R':
+      case 'r': // RED LED (blinking)
+      case 'R': // RED LED (solid)
         status[i].red = LED_ON;
+        status[i].blink = (*new_state == 'r');
         break;
 
-      case 'y':              // YELLOW LED
-        status[i].blink = 1; // Turn on Blinking
-      case 'Y':
+      case 'y': // YELLOW LED (blinking)
+      case 'Y': // YELLOW LED (solid)
         status[i].red = LED_ON / 2;
         status[i].green = LED_ON / 2;
+        status[i].blink = (*new_state == 'y');
         break;
 
-      case 'g':              // GREEN LED
-        status[i].blink = 1; // Turn on Blinking
-      case 'G':
+      case 'g': // GREEN LED (blinking)
+      case 'G': // GREEN LED (solid)
         status[i].green = LED_ON;
+        status[i].blink = (*new_state == 'g');
         break;
 
-      case 'b': // BLUE LED
-        status[i].blink = 1;
-      case 'B':
+      case 'b': // BLUE LED (blinking)
+      case 'B': // BLUE LED (solid)
         status[i].blue = LED_ON;
+        status[i].blink = (*new_state == 'b');
         break;
 
-      case 'w':
-        status[i].blink = 1; // WHITE LED
-      case 'W':
+      case 'w': // WHITE LED (blinking)
+      case 'W': // WHITE LED (solid)
         status[i].red = LED_ON / 3;
         status[i].green = LED_ON / 3;
         status[i].blue = LED_ON / 3;
+        status[i].blink = (*new_state == 'w');
         break;
 
       case ' ': // LEDs are all off
