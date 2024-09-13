@@ -19,6 +19,4 @@ idf_component_register(SRCS  "main.c"
                     "i2c.c"
                     "wifi.c"
                     INCLUDE_DIRS "." 
-                    "C:/Users/allan/esp/esp-idf/esp-idf/components/freertos/FreeRTOS-Kernel/include/freertos"
-                    "C:/Users/allan/esp/esp-idf/esp-idf/components/hal/include/hal"
-                    "C:/Users/allan/esp/esp-idf/esp-idf/components/esp_adc/include/esp_adc")
+                    REQUIRES freertos hal esp_adc esp_timer esp_wifi driver nvs_flash)

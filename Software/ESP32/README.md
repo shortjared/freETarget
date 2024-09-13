@@ -1,3 +1,14 @@
+# Setting Up Dev ENV
+
+- The esp-idf version used is v5.0
+- Follow install instructions from here: https://docs.espressif.com/projects/esp-idf/en/v5/get-started/index.html#step-2-get-esp-idf
+
+## use these commands to build the project
+```
+idf.py fullclean
+idf.py build
+```
+
 | Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-S2 | ESP32-S3 |
 | ----------------- | ----- | -------- | -------- | -------- | -------- |
 
