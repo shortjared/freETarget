@@ -1,0 +1,117 @@
+---
+Language: Cpp
+# Use MISRA-like style
+BasedOnStyle: LLVM
+
+# Always put else on a new line
+# Example:
+# if (condition)
+# {
+#     // code
+# }
+# else
+# {
+#     // code
+# }
+AlwaysBreakAfterReturnType: None
+AlwaysBreakAfterDefinitionReturnType: None
+
+# Curly brackets on their own lines
+# Example:
+# void function()
+# {
+#     // code
+# }
+BreakBeforeBraces: Allman
+
+# Don't modify block comments
+# Example:
+# /* This comment
+#    will not be
+#    reflowed */
+ReflowComments: false
+
+# Align trailing comments and allow up to 2 empty lines
+# Example:
+# int a = 1;     // Comment 1
+# int b = 2;     // Comment 2
+#
+#
+# int c = 3;     // Comment 3
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 2
+MaxEmptyLinesToKeep: 2
+
+# Break and align logical operators in if statements
+# Example:
+# if (condition1
+#     && condition2
+#     || condition3)
+BreakBeforeBinaryOperators: NonAssignment
+AlignOperands: true
+
+# Additional MISRA-like settings
+# Indent using 4 spaces
+# Example:
+# void function()
+# {
+#     if (condition)
+#     {
+#         // code
+#     }
+# }
+IndentWidth: 4
+
+# Set maximum line length to 140 characters
+# Example: Long lines will be wrapped at 140 characters
+ColumnLimit: 140
+
+# Disallow short functions on a single line
+# Example:
+# void shortFunction()
+# {
+#     return;
+# }
+AllowShortFunctionsOnASingleLine: None
+
+# Disallow short if statements on a single line
+# Example:
+# if (condition)
+# {
+#     doSomething();
+# }
+AllowShortIfStatementsOnASingleLine: Never
+
+# Disallow short loops on a single line
+# Example:
+# for (int i = 0; i < 10; ++i)
+# {
+#     doSomething();
+# }
+AllowShortLoopsOnASingleLine: false
+
+# Add space after C-style casts
+# Example: (int) value -> (int) value
+SpaceAfterCStyleCast: true
+
+# Add space before and inside parentheses in control statements
+# Example:
+# if ( condition )
+# while ( condition )
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInParentheses: false
+SpacesInConditionalStatement: true
+
+# Align members of array of structures to the left
+# Example:
+# struct S array[] = {
+# {1, 2, 3},
+# {4, 5, 6}
+# };
+AlignArrayOfStructures: Left
+
+# Align pointers to the left
+# Example: int* ptr;
+PointerAlignment: Left

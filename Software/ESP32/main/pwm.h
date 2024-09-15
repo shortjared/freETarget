@@ -14,6 +14,7 @@
  * Global functions
  */
 void pwm_init(unsigned int pwm_channel, unsigned int pwm_gpio);
-void pwm_set(unsigned int pwm_channel, unsigned int percent); // Set a new PWM duty cycle
+void pwm_set(unsigned int pwm_channel,
+             unsigned int percent); // Set a new PWM duty cycle
 
 #endif

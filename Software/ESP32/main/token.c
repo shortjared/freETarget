@@ -59,16 +59,16 @@
  *  
  *******************************************************************/
 
-#include "freETarget.h"
-#include "diag_tools.h"
 #include "token.h"
+#include "diag_tools.h"
+#include "freETarget.h"
 #include "json.h"
 #include "serial_io.h"
 #include "timer.h"
 
-int my_ring = TOKEN_UNDEF;                        // Token ring address
-int whos_ring = TOKEN_UNDEF;                      // Who owns the ring right now?
-static volatile unsigned long  token_tick;        // Token ring watchdog
+int my_ring = TOKEN_UNDEF;                // Token ring address
+int whos_ring = TOKEN_UNDEF;              // Who owns the ring right now?
+static volatile unsigned long token_tick; // Token ring watchdog
 
 /*-----------------------------------------------------
  * 
@@ -91,37 +91,39 @@ static volatile unsigned long  token_tick;        // Token ring watchdog
 void token_init(void)
 {
 
-/*
+    /*
  * If not in token ring mode or WiFi is present,do nothing
  */
-  if (json_token == TOKEN_NONE)                 // Not in token ring mode
-  {
-    return;
-  }
+    if ( json_token == TOKEN_NONE ) // Not in token ring mode
+    {
+        return;
+    }
 
-  timer_new(&token_tick, 5 * ONE_SECOND);      // Token ring watchdog
+    timer_new(&token_tick, 5 * ONE_SECOND); // Token ring watchdog
 
-  DLT(DLT_CRITICAL, printf("token_init()"); )
-  
-/*
+    DLT(DLT_CRITICAL, printf("token_init()");)
+
+    /*
  * Send out the token initializaation request
  */
-  if ( json_token == TOKEN_MASTER )
-  {
-    serial_putch((char)(TOKEN_BYTE | TOKEN_ENUM | (1 + 1)), AUX );                           // Master, send out an enum
-  }
-  else
-  {
-    serial_putch((char)(TOKEN_BYTE | TOKEN_ENUM_REQUEST | (my_ring & TOKEN_RING)), AUX);   // Slave, Send out the request
-  }
-  
-/*
+    if ( json_token == TOKEN_MASTER )
+    {
+        serial_putch((char) (TOKEN_BYTE | TOKEN_ENUM | (1 + 1)),
+                     AUX); // Master, send out an enum
+    }
+    else
+    {
+        serial_putch((char) (TOKEN_BYTE | TOKEN_ENUM_REQUEST | (my_ring & TOKEN_RING)),
+                     AUX); // Slave, Send out the request
+    }
+
+    /*
  * All done, return
- */  
-  return;
+ */
+    return;
 }
 
- 
+
 /*-----------------------------------------------------
  * 
  * @function: token_cycle
@@ -140,37 +142,37 @@ void token_init(void)
  *-----------------------------------------------------*/
 void token_cycle(void)
 {
-  IF_NOT(IN_OPERATION) return;
+    IF_NOT(IN_OPERATION) return;
 
-  switch (json_token )
-  {
+    switch ( json_token )
+    {
     case TOKEN_NONE:
-      break;
+        break;
 
     case TOKEN_MASTER:
-      if ( token_tick == 0)             // Time to check the token ring?
-      {
-        token_init();                   // Request an enumeration
-        if ( my_ring == TOKEN_UNDEF )
+        if ( token_tick == 0 )               // Time to check the token ring?
         {
-          token_tick = ONE_SECOND * 5;  //  Waiting to start up
+            token_init();                    // Request an enumeration
+            if ( my_ring == TOKEN_UNDEF )
+            {
+                token_tick = ONE_SECOND * 5; //  Waiting to start up
+            }
+            else
+            {
+                token_tick = ONE_SECOND * 60; // Just check
+            }
         }
-        else
-        {
-          token_tick = ONE_SECOND * 60; // Just check
-        }
-      }
-      break;
+        break;
 
     case TOKEN_SLAVE:
-      token_poll();                     // Check the token ring
-      break;
-  }
-    
-/*
+        token_poll(); // Check the token ring
+        break;
+    }
+
+    /*
  *  Finished, return to the scheduler
  */
-  return;
+    return;
 }
 
 /*-----------------------------------------------------
@@ -190,157 +192,162 @@ void token_cycle(void)
  * 
  *-----------------------------------------------------*/
 void token_poll(void)
- {
-  char token;                                         // Token read from serial port
+{
+    char token; // Token read from serial port
 
-/*
+    /*
  * If we are not in token ring mode, then copy the aux spool to the json spool
  */
-  switch ( json_token )
-  {
-    case TOKEN_NONE:                                  // No token ring installed
-      while ( serial_available(AUX) )                 // Is there something waiting for us?
-      {
-          token = serial_getch(AUX);                    //  Pick it up
-          serial_putch(token, AUX);                    //  and save it for our own use
-      }  
-      break;
- 
-/*
+    switch ( json_token )
+    {
+    case TOKEN_NONE:                    // No token ring installed
+        while ( serial_available(AUX) ) // Is there something waiting for us?
+        {
+            token = serial_getch(AUX);  //  Pick it up
+            serial_putch(token, AUX);   //  and save it for our own use
+        }
+        break;
+
+        /*
  * Handle stuff coming from the PC for broadcast
  */
-    case TOKEN_MASTER:                                // Am I the master connected to the PC?  
-      while ( serial_available(AUX) )                 // Is there something waiting for us?
-      {
-        token = serial_getch(AUX);                    //  Pick it up
-        serial_putch(token, AUX);                      //  Pass it along
-      }     
-                                  
-/*
+    case TOKEN_MASTER:                  // Am I the master connected to the PC?
+        while ( serial_available(AUX) ) // Is there something waiting for us?
+        {
+            token = serial_getch(AUX);  //  Pick it up
+            serial_putch(token, AUX);   //  Pass it along
+        }
+
+        /*
  * Handle local token ring traffic
  */
-    while ( serial_available(AUX) )
-    {
-      token = serial_getch(AUX);
-      DLT(DLT_INFO, printf("Master Rx: 0x%2X  %d", token, token);)
-
-      if ( token & TOKEN_BYTE )
-      {
-        switch ( token & (TOKEN_CONTROL) )                  // Yes, act on it
+        while ( serial_available(AUX) )
         {
-          case (TOKEN_ENUM_REQUEST):                          // A new device has requested an enum
-            serial_putch((char)(TOKEN_BYTE | TOKEN_ENUM | (1 + 1)), ALL ); // Yes, start the enumeration at 2 
-            DLT(DLT_INFO, printf("{\"TOKEN_ENUM\":%d }", (int)(token & TOKEN_RING));)
-            break;
-          
-          case TOKEN_ENUM:                                    // An enumeration byte is passing around
-            my_ring = 1;                                      // Master is always 0
-            whos_ring = TOKEN_UNDEF;                          // Nobody owns the ring right now
-            break;
-        
-          case TOKEN_TAKE:                                    // A take is passing aroound
-            if ( (token & TOKEN_RING) == my_ring )            // Is it me?
-            {
-              whos_ring = my_ring;                            // Yes, Grab it
-            }
-            break;                                            // 
-                           
-          case TOKEN_RELEASE:                                 // A release is passing around
-              whos_ring = TOKEN_UNDEF;                        // Yes, Release it
-              break;                                          // 
-            
-          case TOKEN_TAKE_REQUEST:                            // Request ownership of the bus
-            if ( whos_ring == TOKEN_UNDEF )                   // Is the ring available?
-            {
-              whos_ring = token & TOKEN_RING;                 // Yes, give ownership
-              serial_putch((char)(TOKEN_BYTE | TOKEN_TAKE | (token & TOKEN_RING)), AUX);   // and pass it along
-            }
-            break;                                            // Otherwise throw it away
+            token = serial_getch(AUX);
+            DLT(DLT_INFO, printf("Master Rx: 0x%2X  %d", token, token);)
 
-          case TOKEN_RELEASE_REQUEST:                         // Give up ownership of the bus
-            if ( whos_ring == (token & TOKEN_RING) )          // Is the person asking the owner too?
+            if ( token & TOKEN_BYTE )
             {
-              whos_ring = TOKEN_UNDEF;                        // Yes, the ring is now undefined
-              serial_putch((char)(TOKEN_BYTE | TOKEN_RELEASE | (token & TOKEN_RING)), AUX);  // and pass it along
+                switch ( token & (TOKEN_CONTROL) ) // Yes, act on it
+                {
+                case (TOKEN_ENUM_REQUEST):         // A new device has requested an enum
+                    serial_putch((char) (TOKEN_BYTE | TOKEN_ENUM | (1 + 1)),
+                                 ALL);             // Yes, start the enumeration at 2
+                    DLT(DLT_INFO, printf("{\"TOKEN_ENUM\":%d }", (int) (token & TOKEN_RING));)
+                    break;
+
+                case TOKEN_ENUM:                             // An enumeration byte is passing around
+                    my_ring = 1;                             // Master is always 0
+                    whos_ring = TOKEN_UNDEF;                 // Nobody owns the ring right now
+                    break;
+
+                case TOKEN_TAKE:                             // A take is passing aroound
+                    if ( (token & TOKEN_RING) == my_ring )   // Is it me?
+                    {
+                        whos_ring = my_ring;                 // Yes, Grab it
+                    }
+                    break;                                   //
+
+                case TOKEN_RELEASE:                          // A release is passing around
+                    whos_ring = TOKEN_UNDEF;                 // Yes, Release it
+                    break;                                   //
+
+                case TOKEN_TAKE_REQUEST:                     // Request ownership of the bus
+                    if ( whos_ring == TOKEN_UNDEF )          // Is the ring available?
+                    {
+                        whos_ring = token & TOKEN_RING;      // Yes, give ownership
+                        serial_putch((char) (TOKEN_BYTE | TOKEN_TAKE | (token & TOKEN_RING)),
+                                     AUX);                   // and pass it along
+                    }
+                    break;                                   // Otherwise throw it away
+
+                case TOKEN_RELEASE_REQUEST:                  // Give up ownership of the bus
+                    if ( whos_ring == (token & TOKEN_RING) ) // Is the person asking the owner too?
+                    {
+                        whos_ring = TOKEN_UNDEF;             // Yes, the ring is now undefined
+                        serial_putch((char) (TOKEN_BYTE | TOKEN_RELEASE | (token & TOKEN_RING)),
+                                     AUX);                   // and pass it along
+                    }
+                    break;
+
+                default:                          // Not a control byte
+                    serial_putch(token, CONSOLE); // Send it out the serial port
+                    break;
+                }
             }
-            break;
-             
-          default:                                            // Not a control byte
-            serial_putch(token, CONSOLE);                   // Send it out the serial port
-            break;    
-          }
-      }
-      else
-      {  
-        if ( whos_ring != TOKEN_UNDEF )                       // Is the ring undefined?
-        {
-          serial_putch(token, CONSOLE);                                // Then don't send anything onwards
+            else
+            {
+                if ( whos_ring != TOKEN_UNDEF ) // Is the ring undefined?
+                {
+                    serial_putch(token,
+                                 CONSOLE);      // Then don't send anything onwards
+                }
+            }
         }
-      }
-    }    
-    break;
-  
-/*
+        break;
+
+        /*
  * Regular node
  */
-  case TOKEN_SLAVE:
-    while( serial_available(AUX) )
-    {
-      token = serial_getch(AUX);
-      DLT(DLT_INFO, printf("Slave Rx: 0x%02X %d", token, token);)
-
-      if ( token & TOKEN_BYTE )
-      {
-        switch ( token & (TOKEN_CONTROL) )                  // Yes, act on it
+    case TOKEN_SLAVE:
+        while ( serial_available(AUX) )
         {
-          case TOKEN_ENUM_REQUEST:                          // A new device has requested an enum
-          case TOKEN_TAKE_REQUEST:                          // Request ownership of the bus     
-          case TOKEN_RELEASE_REQUEST:                       // Give up ownership of the bus      
-              serial_putch( token, AUX );                    // Just pass it along
-              break;
-  
-          case TOKEN_ENUM:                                  // An enumeration byte is passing around
-              my_ring = token & TOKEN_RING;                 // Extract the node number
-              whos_ring = TOKEN_UNDEF;                      // Nobody owns the ring right now?
-              serial_putch((char)(TOKEN_BYTE | TOKEN_ENUM | (my_ring+1)), AUX ); // Add 1 and send it along
-              break;
-        
-          case TOKEN_TAKE:                                  // A take is passing aroound
-              whos_ring = token & TOKEN_RING;
-              serial_putch(token, AUX);                      // Pass it along to the master
-              break;
-          
-          case TOKEN_RELEASE:                               // A release is passing around
-              whos_ring = TOKEN_UNDEF;                      // Yes, Release it
-              set_status_LED(LED_READY);                    // And show it is ready
-              serial_putch(token, AUX);                     // Pass it along to the master
-              break;                                        // 
-               
-          default:                                          // Not a control byte
-              serial_putch(token, AUX);                     // Send it on to the next node
-             break;  
-        }
-      }
-      else
-      {
-        serial_putch(token, AUX);                            // Send it to the next guy
-        if ( whos_ring == TOKEN_UNDEF)                      // and the ring is not in use
-        {      
-          serial_putch(token, AUX);                                 // Ring in broadcast
-        }                                
-      }
-    }
-    break;
-  }
+            token = serial_getch(AUX);
+            DLT(DLT_INFO, printf("Slave Rx: 0x%02X %d", token, token);)
 
-/*
+            if ( token & TOKEN_BYTE )
+            {
+                switch ( token & (TOKEN_CONTROL) ) // Yes, act on it
+                {
+                case TOKEN_ENUM_REQUEST:           // A new device has requested an enum
+                case TOKEN_TAKE_REQUEST:           // Request ownership of the bus
+                case TOKEN_RELEASE_REQUEST:        // Give up ownership of the bus
+                    serial_putch(token, AUX);      // Just pass it along
+                    break;
+
+                case TOKEN_ENUM:                   // An enumeration byte is passing around
+                    my_ring = token & TOKEN_RING;  // Extract the node number
+                    whos_ring = TOKEN_UNDEF;       // Nobody owns the ring right now?
+                    serial_putch((char) (TOKEN_BYTE | TOKEN_ENUM | (my_ring + 1)),
+                                 AUX);             // Add 1 and send it along
+                    break;
+
+                case TOKEN_TAKE:                   // A take is passing aroound
+                    whos_ring = token & TOKEN_RING;
+                    serial_putch(token, AUX);      // Pass it along to the master
+                    break;
+
+                case TOKEN_RELEASE:                // A release is passing around
+                    whos_ring = TOKEN_UNDEF;       // Yes, Release it
+                    set_status_LED(LED_READY);     // And show it is ready
+                    serial_putch(token, AUX);      // Pass it along to the master
+                    break;                         //
+
+                default:                           // Not a control byte
+                    serial_putch(token, AUX);      // Send it on to the next node
+                    break;
+                }
+            }
+            else
+            {
+                serial_putch(token, AUX);       // Send it to the next guy
+                if ( whos_ring == TOKEN_UNDEF ) // and the ring is not in use
+                {
+                    serial_putch(token, AUX);   // Ring in broadcast
+                }
+            }
+        }
+        break;
+    }
+
+    /*
  * See if the waaiting ation has been completed
  */
 
-   return;
+    return;
 }
 
-  
+
 /*-----------------------------------------------------
  * 
  * @function: token_take
@@ -357,34 +364,35 @@ void token_poll(void)
  *-----------------------------------------------------*/
 int token_take(void)
 {
-  
-/*
+
+    /*
  * If not in token ring mode or WiFi is present,do nothing
  */
-  if (json_token == TOKEN_NONE)                 // Not in token ring mode
-  {
-    return 0;
-  }
-  
-  DLT(DLT_INFO, printf("token_take()");)
+    if ( json_token == TOKEN_NONE ) // Not in token ring mode
+    {
+        return 0;
+    }
 
-/*
+    DLT(DLT_INFO, printf("token_take()");)
+
+    /*
  * Check to see if the token ring is alreay used
  */
-   if ( (whos_ring != TOKEN_UNDEF) )               // The ring belongs to somebody
-   {
-    return 1;
-   }
-   
-/*
+    if ( (whos_ring != TOKEN_UNDEF) ) // The ring belongs to somebody
+    {
+        return 1;
+    }
+
+    /*
  * Send out the token initializaation request
  */
-  serial_putch(TOKEN_BYTE | TOKEN_TAKE_REQUEST | my_ring, AUX);   // Send out the request
+    serial_putch(TOKEN_BYTE | TOKEN_TAKE_REQUEST | my_ring,
+                 AUX); // Send out the request
 
-/*
+    /*
  * All done, return
- */  
-  return 1;
+ */
+    return 1;
 }
 
 /*-----------------------------------------------------
@@ -402,36 +410,36 @@ int token_take(void)
  * 
  *-----------------------------------------------------*/
 int token_give(void)
-{  
-/*
+{
+    /*
  * If not in token ring mode or WiFi is present,do nothing
  */
-  if (json_token == TOKEN_NONE)                 // Not in token ring mode
-  {
-    return 0;
-  }
-  
-  DLT(DLT_INFO, printf("token_give()");) 
+    if ( json_token == TOKEN_NONE ) // Not in token ring mode
+    {
+        return 0;
+    }
 
-/*
+    DLT(DLT_INFO, printf("token_give()");)
+
+    /*
  * Check to see if the token ring is alreay used
  */
-   if ( whos_ring != my_ring )                    // The ring belongs to somebody
-   {
-    return 0;
-   }
-   
-/*
+    if ( whos_ring != my_ring ) // The ring belongs to somebody
+    {
+        return 0;
+    }
+
+    /*
  * Send out the token initializaation request
  */
-  serial_putch((char)(TOKEN_BYTE | TOKEN_RELEASE_REQUEST | my_ring),  AUX);// Send out the request
-  
-/*
- * All done, return
- */  
-  return 1;
-}
+    serial_putch((char) (TOKEN_BYTE | TOKEN_RELEASE_REQUEST | my_ring),
+                 AUX); // Send out the request
 
+    /*
+ * All done, return
+ */
+    return 1;
+}
 
 
 /*-----------------------------------------------------
@@ -453,17 +461,17 @@ int token_give(void)
  *-----------------------------------------------------*/
 int token_available(void)
 {
-/*
+    /*
  * If not in token ring mode or WiFi is present,do nothing
  */
-  if ( (json_token == TOKEN_NONE)                 // Not in token ring mode
-    || ((whos_ring == my_ring ) && (my_ring != TOKEN_UNDEF)))  // Or the ring belong to me
-  {
-    return 1;
-  }
+    if ( (json_token == TOKEN_NONE)                                // Not in token ring mode
+         || ((whos_ring == my_ring) && (my_ring != TOKEN_UNDEF)) ) // Or the ring belong to me
+    {
+        return 1;
+    }
 
-/*
+    /*
  * The ring is not available to me
- */  
-  return 0;
+ */
+    return 0;
 }

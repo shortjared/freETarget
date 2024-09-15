@@ -13,41 +13,41 @@
  * https://docs.espressif.com/projects/esp-idf/en/v4.3/esp32/api-reference/peripherals/timer.html
  * 
  * ----------------------------------------------------*/
-#include "stdbool.h"
+#include "diag_tools.h"
 #include "driver\timer.h"
 #include "freETarget.h"
-#include "diag_tools.h"
 #include "gpio_types.h"
 #include "json.h"
+#include "stdbool.h"
 
 /*
  * Definitions
  */
-#define FREQUENCY 1000ul                        // 1000 Hz
-#define N_TIMERS       32                       // Keep space for 32 timers
-#define PORT_STATE_IDLE 0                       // There are no sensor inputs
-#define PORT_STATE_WAIT 1                       // Some sensor inputs are present, but not all
-#define PORT_STATE_DONE 2                       // All of the inmputs are present
+#define FREQUENCY 1000ul              // 1000 Hz
+#define N_TIMERS 32                   // Keep space for 32 timers
+#define PORT_STATE_IDLE 0             // There are no sensor inputs
+#define PORT_STATE_WAIT 1             // Some sensor inputs are present, but not all
+#define PORT_STATE_DONE 2             // All of the inmputs are present
 
-#define MAX_WAIT_TIME   10                      // Wait up to 10 ms for the input to arrive
-#define MAX_RING_TIME   50                      // Wait 50 ms for the ringing to stop
+#define MAX_WAIT_TIME 10              // Wait up to 10 ms for the input to arrive
+#define MAX_RING_TIME 50              // Wait 50 ms for the ringing to stop
 
-#define TICK_10ms        1                      // vTaskDelay in 10 ms
-#define BAND_100ms    (TICK_10ms * 10)          // vTaskDelay in 100 ms
-#define BAND_500ms    (TICK_10ms * 50)          // vTaskDelay in 500 ms
-#define BAND_1000ms   (TICK_10ms * 100)         // vTaskDelay in 1000 ms
+#define TICK_10ms 1                   // vTaskDelay in 10 ms
+#define BAND_100ms (TICK_10ms * 10)   // vTaskDelay in 100 ms
+#define BAND_500ms (TICK_10ms * 50)   // vTaskDelay in 500 ms
+#define BAND_1000ms (TICK_10ms * 100) // vTaskDelay in 1000 ms
 
 /*
  * Local Variables
  */
-static volatile unsigned long* timers[N_TIMERS];  // Active timer list
-       unsigned int isr_state;                    // What sensor state are we in 
-static volatile unsigned long isr_timer;          // Interrupt timer 
+static volatile unsigned long* timers[N_TIMERS]; // Active timer list
+unsigned int isr_state;                          // What sensor state are we in
+static volatile unsigned long isr_timer;         // Interrupt timer
 
 /*
  *  Function Prototypes
  */
-static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args);
+static bool IRAM_ATTR freeETarget_timer_isr_callback(void* args);
 
 /*-----------------------------------------------------
  * 
@@ -69,52 +69,54 @@ static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args);
  * 
  *-----------------------------------------------------*/
 #include "freETarget.h"
-#include "timer.h"
 #include "mfs.h"
+#include "timer.h"
 #include "token.h"
 
-#define TIMER_DIVIDER         (16)                    //  Hardware timer clock divider
-#define TIMER_SCALE           (1000/ TIMER_DIVIDER)   // convert counter value to seconds
-#define ONE_MS                (80 * TIMER_SCALE)      // 1 ms timer interrupt
+#define TIMER_DIVIDER (16)                 //  Hardware timer clock divider
+#define TIMER_SCALE (1000 / TIMER_DIVIDER) // convert counter value to seconds
+#define ONE_MS (80 * TIMER_SCALE)          // 1 ms timer interrupt
 
-  timer_config_t config = {
-      .clk_src      = RMT_CLK_SRC_APB,
-      .divider      = TIMER_DIVIDER,
-      .counter_dir  = TIMER_COUNT_UP,
-      .counter_en   = TIMER_PAUSE,
-      .alarm_en     = TIMER_ALARM_EN,
-      .auto_reload  = 1,
-  }; // default clock source is APB
+timer_config_t config = {
+    .clk_src = RMT_CLK_SRC_APB,
+    .divider = TIMER_DIVIDER,
+    .counter_dir = TIMER_COUNT_UP,
+    .counter_en = TIMER_PAUSE,
+    .alarm_en = TIMER_ALARM_EN,
+    .auto_reload = 1,
+}; // default clock source is APB
 
 void freeETarget_timer_init(void)
 {
-  DLT(DLT_CRITICAL, printf("freeETarget_timer_init()");)
-  timer_init(TIMER_GROUP_0, TIMER_1, &config);
-  timer_set_counter_value(TIMER_GROUP_0, TIMER_1, 0);                   // Start the timer at 0
-  timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, ONE_MS);                // Trigger on this value
-  timer_enable_intr(TIMER_GROUP_0, TIMER_1);                            // Interrupt associated with this interrupt
-  timer_isr_callback_add(TIMER_GROUP_0, TIMER_1, freeETarget_timer_isr_callback, NULL, 0);
-  timer_start(TIMER_GROUP_0, TIMER_1);
-  timer_new(&isr_timer, 0);
-  shot_in = 0;
-  shot_out = 0;
+    DLT(DLT_CRITICAL, printf("freeETarget_timer_init()");)
+    timer_init(TIMER_GROUP_0, TIMER_1, &config);
+    timer_set_counter_value(TIMER_GROUP_0, TIMER_1, 0); // Start the timer at 0
+    timer_set_alarm_value(TIMER_GROUP_0, TIMER_1,
+                          ONE_MS);                      // Trigger on this value
+    timer_enable_intr(TIMER_GROUP_0,
+                      TIMER_1);                         // Interrupt associated with this interrupt
+    timer_isr_callback_add(TIMER_GROUP_0, TIMER_1, freeETarget_timer_isr_callback, NULL, 0);
+    timer_start(TIMER_GROUP_0, TIMER_1);
+    timer_new(&isr_timer, 0);
+    shot_in = 0;
+    shot_out = 0;
 
-/*
+    /*
  *  Timer running. return
  */
-  return;
+    return;
 }
 
-void freeETarget_timer_pause(void)                                        // Stop the timer
+void freeETarget_timer_pause(void) // Stop the timer
 {
-  timer_pause(TIMER_GROUP_0, TIMER_1);
-  return;
+    timer_pause(TIMER_GROUP_0, TIMER_1);
+    return;
 }
 
-void freeETarget_timer_start(void)                                        // Start the timer
+void freeETarget_timer_start(void) // Start the timer
 {
-  timer_start(TIMER_GROUP_0, TIMER_1);
-  return;
+    timer_start(TIMER_GROUP_0, TIMER_1);
+    return;
 }
 
 /*-----------------------------------------------------
@@ -145,63 +147,64 @@ void freeETarget_timer_start(void)                                        // Sta
  *        
  * 
  *-----------------------------------------------------*/
-static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args)
+static bool IRAM_ATTR freeETarget_timer_isr_callback(void* args)
 {
-  BaseType_t high_task_awoken = pdFALSE;
-  unsigned int pin;                             // Value read from the port
+    BaseType_t high_task_awoken = pdFALSE;
+    unsigned int pin;                  // Value read from the port
 
-  IF_NOT(IN_OPERATION) return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR 
+    IF_NOT(IN_OPERATION)
+    return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 
-/*
+    /*
  * Decide what to do if based on what inputs are present
  */
-  pin = is_running();                         // Read in the RUN bits
+    pin = is_running(); // Read in the RUN bits
 
-/*
+    /*
  * Read the shot based on the ISR state
  */
-  switch (isr_state)
-  {
-    case PORT_STATE_IDLE:                       // Idle, Wait for something to show up
-      if ( pin != 0 )                           // Something has triggered
-      { 
-        isr_timer = MAX_WAIT_TIME;              // Start the wait timer
-        isr_state = PORT_STATE_WAIT;            // Got something wait for all of the sensors tro trigger
-      }
-      break;
-          
-    case PORT_STATE_WAIT:                       // Something is present, wait for all of the inputs
-      if ( (pin == RUN_MASK)                    // We have all of the inputs
-          || (isr_timer == 0) )                 // or ran out of time.  Read the timers and restart 
-      { 
-        aquire();                               // Read the counters
-        isr_timer = json_min_ring_time;         // Reset the timer
-        isr_state = PORT_STATE_DONE;            // and wait for the all clear
-      }
-      break;
-      
-    case PORT_STATE_DONE:                       // Waiting for the ringing to stop
-      if ( pin != 0 )                           // Something got latched
-      {
-        isr_timer = json_min_ring_time;
-        stop_timers();                          // Reset and try later
-      }
-      else
-      {
-        if ( isr_timer == 0 )                   // Make sure there is no rigning
+    switch ( isr_state )
+    {
+    case PORT_STATE_IDLE:                // Idle, Wait for something to show up
+        if ( pin != 0 )                  // Something has triggered
         {
-          arm_timers();                         // and arm for the next time
-          isr_state = PORT_STATE_IDLE;          // and go back to idle
-        } 
-      }
-      break;
-  }
+            isr_timer = MAX_WAIT_TIME;   // Start the wait timer
+            isr_state = PORT_STATE_WAIT; // Got something wait for all of the sensors tro trigger
+        }
+        break;
+
+    case PORT_STATE_WAIT:                   // Something is present, wait for all of the inputs
+        if ( (pin == RUN_MASK)              // We have all of the inputs
+             || (isr_timer == 0) )          // or ran out of time.  Read the timers and restart
+        {
+            aquire();                       // Read the counters
+            isr_timer = json_min_ring_time; // Reset the timer
+            isr_state = PORT_STATE_DONE;    // and wait for the all clear
+        }
+        break;
+
+    case PORT_STATE_DONE:  // Waiting for the ringing to stop
+        if ( pin != 0 )    // Something got latched
+        {
+            isr_timer = json_min_ring_time;
+            stop_timers(); // Reset and try later
+        }
+        else
+        {
+            if ( isr_timer == 0 )            // Make sure there is no rigning
+            {
+                arm_timers();                // and arm for the next time
+                isr_state = PORT_STATE_IDLE; // and go back to idle
+            }
+        }
+        break;
+    }
 
 
-/*
+    /*
  * Return from interrupts
  */
-  return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
+    return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 }
 
 /*-----------------------------------------------------
@@ -220,33 +223,29 @@ static bool IRAM_ATTR freeETarget_timer_isr_callback(void *args)
  * hit zero, the individual timer is deleted
  * 
  *-----------------------------------------------------*/
-void freeETarget_timers
-(
-  void *pvParameters
-)
+void freeETarget_timers(void* pvParameters)
 {
-  unsigned int i;
+    unsigned int i;
 
-  DLT(DLT_CRITICAL, printf("freeETarget_timers()");)
-/*
+    DLT(DLT_CRITICAL, printf("freeETarget_timers()");)
+    /*
  *  Decrement the timers on a 10ms (100Hz) interval
  */
-  while (1)
-  {
-    for (i=0; i != N_TIMERS; i++)   // Refresh the timers.  Decriment in 10ms increments
+    while ( 1 )
     {
-      if ( (timers[i] != 0)
-        && ( *timers[i] != 0 ) )
-      {
-        (*timers[i])--;             // Decriment the timer
-      }
+        for ( i = 0; i != N_TIMERS; i++ ) // Refresh the timers.  Decriment in 10ms increments
+        {
+            if ( (timers[i] != 0) && (*timers[i] != 0) )
+            {
+                (*timers[i])--; // Decriment the timer
+            }
+        }
+        vTaskDelay(TICK_10ms);
     }
-    vTaskDelay(TICK_10ms);
-  }
-/*
+    /*
  * Never get here
  */
-  return;
+    return;
 }
 
 /*-----------------------------------------------------
@@ -271,54 +270,51 @@ void freeETarget_timers
  * timers are NOT deleted when they expire.
  * 
  *-----------------------------------------------------*/
-void freeETarget_synchronous
-(
-  void *pvParameters
-)
+void freeETarget_synchronous(void* pvParameters)
 {
-  unsigned int cycle_count = 0;
-  unsigned int toggle = 0;
+    unsigned int cycle_count = 0;
+    unsigned int toggle = 0;
 
-  DLT(DLT_CRITICAL, printf("freeETarget_synchronous()");)
+    DLT(DLT_CRITICAL, printf("freeETarget_synchronous()");)
 
-  while (1)
-  {
+    while ( 1 )
+    {
 
-/*
+        /*
  *  10 ms band
  */
-    token_cycle();
-    multifunction_switch_tick();
-    multifunction_switch();
-    paper_drive_tick();
-    
-/*
+        token_cycle();
+        multifunction_switch_tick();
+        multifunction_switch();
+        paper_drive_tick();
+
+        /*
  *  500 ms band
  */
-    if ( (cycle_count  %  BAND_500ms) == 0 )
-    {
-      toggle ^= 1;
-      commit_status_LEDs( toggle );
-      tabata_task();
-      rapid_fire_task();
-    }
+        if ( (cycle_count % BAND_500ms) == 0 )
+        {
+            toggle ^= 1;
+            commit_status_LEDs(toggle);
+            tabata_task();
+            rapid_fire_task();
+        }
 
-/*
+        /*
  * 1000 ms band
  */
-    if ( (cycle_count % BAND_1000ms) == 0 )
-    {
-      bye();                                           // Dim the lights  
-      check_12V();
-      send_keep_alive();
-    }
+        if ( (cycle_count % BAND_1000ms) == 0 )
+        {
+            bye(); // Dim the lights
+            check_12V();
+            send_keep_alive();
+        }
 
-/*
+        /*
  * All done, prepare for the next cycle
  */
-    cycle_count++;
-    vTaskDelay(TICK_10ms);                           // Delay 10ms
-  }
+        cycle_count++;
+        vTaskDelay(TICK_10ms); // Delay 10ms
+    }
 }
 
 /*-----------------------------------------------------
@@ -348,59 +344,55 @@ void freeETarget_synchronous
  * same timer addess without creating a problem
  * 
  *-----------------------------------------------------*/
-int timer_new
-(
-  volatile unsigned long* new_timer, // Pointer to new down counter
-           unsigned long  duration   // Duration of the timer
+int timer_new(volatile unsigned long* new_timer, // Pointer to new down counter
+              unsigned long duration             // Duration of the timer
 )
 {
-  unsigned int i;
+    unsigned int i;
 
-  if ( new_timer == NULL )
-  {
-    return 0;
-  }
-
-  for (i=0;  i != N_TIMERS; i++ )   // Look through the space
-  {
-    if ( (timers[i] == 0)           // Got an empty timer slot
-      || (timers[i] == new_timer) ) // or it already exists
+    if ( new_timer == NULL )
     {
-      timers[i] = new_timer;        // Add it in
-      *new_timer = duration;
-      return 1;
+        return 0;
     }
-  }
-  DLT(DLT_CRITICAL,  printf("No space for new timer");)
-  
-  return 0;
+
+    for ( i = 0; i != N_TIMERS; i++ )      // Look through the space
+    {
+        if ( (timers[i] == 0)              // Got an empty timer slot
+             || (timers[i] == new_timer) ) // or it already exists
+        {
+            timers[i] = new_timer;         // Add it in
+            *new_timer = duration;
+            return 1;
+        }
+    }
+    DLT(DLT_CRITICAL, printf("No space for new timer");)
+
+    return 0;
 }
 
-int timer_delete
-(
-  volatile unsigned long* old_timer   // Pointer to new down counter
+int timer_delete(volatile unsigned long* old_timer // Pointer to new down counter
 )
 {
-  unsigned int i;
+    unsigned int i;
 
-  if ( old_timer == 0 )
-  {
-    return 0;
-  }
-
-  *old_timer = 0;                   // Set the timer to zero
-
-  for (i=0;  i != N_TIMERS; i++ )   // Look through the space
-  {
-    if ( timers[i] == old_timer )   // Found the existing timer
+    if ( old_timer == 0 )
     {
-      timers[i] = 0;                // Remove the pointer
-      return 1;
+        return 0;
     }
-  }
 
-/*
+    *old_timer = 0;                   // Set the timer to zero
+
+    for ( i = 0; i != N_TIMERS; i++ ) // Look through the space
+    {
+        if ( timers[i] == old_timer ) // Found the existing timer
+        {
+            timers[i] = 0;            // Remove the pointer
+            return 1;
+        }
+    }
+
+    /*
  *  The timer doesn't exist, return an error
  */
-  return 0;
+    return 0;
 }
